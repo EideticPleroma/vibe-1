@@ -1,0 +1,7 @@
+- Scenario 1: Generate warning alert (Positive)
+  - Steps: Set budget, add transactions to reach 85%, GET /api/dashboard.
+  - Expected: Warning alert in response.
+
+- Scenario 2: No alerts if under budget (Edge)
+  - Steps: Spending at 50%, GET /api/dashboard.
+  - Expected: Empty alerts array.

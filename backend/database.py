@@ -36,13 +36,13 @@ def create_sample_categories():
         Category(name="Salary", type="income", color="#28a745"),
         Category(name="Freelance", type="income", color="#17a2b8"),
         Category(name="Investment Returns", type="income", color="#ffc107"),
-        Category(name="Groceries", type="expense", color="#dc3545"),
-        Category(name="Transportation", type="expense", color="#fd7e14"),
-        Category(name="Entertainment", type="expense", color="#e83e8c"),
-        Category(name="Utilities", type="expense", color="#6f42c1"),
-        Category(name="Healthcare", type="expense", color="#20c997"),
-        Category(name="Shopping", type="expense", color="#6c757d"),
-        Category(name="Dining Out", type="expense", color="#fd7e14")
+        Category(name="Groceries", type="expense", color="#dc3545", budget_limit=500.00),
+        Category(name="Transportation", type="expense", color="#fd7e14", budget_limit=200.00),
+        Category(name="Entertainment", type="expense", color="#e83e8c", budget_limit=150.00),
+        Category(name="Utilities", type="expense", color="#6f42c1", budget_limit=300.00),
+        Category(name="Healthcare", type="expense", color="#20c997", budget_limit=100.00),
+        Category(name="Shopping", type="expense", color="#6c757d", budget_limit=250.00),
+        Category(name="Dining Out", type="expense", color="#fd7e14", budget_limit=200.00)
     ]
     
     for category in categories:

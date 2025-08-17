@@ -55,7 +55,8 @@ def create_category():
         category = Category(
             name=data['name'],
             type=data['type'],
-            color=data.get('color', '#007bff')
+            color=data.get('color', '#007bff'),
+            budget_limit=float(data.get('budget_limit', 0.0)) if data.get('budget_limit') else None
         )
         
         db.session.add(category)
@@ -88,6 +89,17 @@ def update_category(category_id):
         
         if 'color' in data:
             category.color = data['color']
+        
+        if 'budget_limit' in data:
+            if category.type != 'expense':
+                return handle_error("Budget limit can only be set for expense categories")
+            try:
+                budget = float(data['budget_limit'])
+                if budget < 0:
+                    return handle_error("Budget limit must be non-negative")
+                category.budget_limit = budget
+            except ValueError:
+                return handle_error("Invalid budget limit value")
         
         db.session.commit()
         return jsonify(category.to_dict())
@@ -479,6 +491,36 @@ def get_dashboard_data():
             desc(Transaction.date)
         ).limit(5).all()
         
+        # Budget progress
+        budget_progress = []
+        expense_categories_with_budget = Category.query.filter_by(type='expense').filter(Category.budget_limit > 0).all()
+        for cat in expense_categories_with_budget:
+            spent_query = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == cat.id,
+                Transaction.type == 'expense'
+            )
+            if start_date:
+                spent_query = spent_query.filter(Transaction.date >= start_date)
+            if end_date:
+                spent_query = spent_query.filter(Transaction.date <= end_date)
+            spent = abs(spent_query.scalar() or 0)
+            progress = {
+                'category': cat.name,
+                'budget': float(cat.budget_limit),
+                'spent': spent,
+                'percentage': (spent / float(cat.budget_limit) * 100) if cat.budget_limit and float(cat.budget_limit) > 0 else 0
+            }
+            budget_progress.append(progress)
+
+        alerts = []
+        warning_threshold = 0.8
+        over_threshold = 1.0
+        for progress in budget_progress:
+            if progress['percentage'] > over_threshold * 100:
+                alerts.append(f"Over budget in {progress['category']}: {progress['percentage']:.1f}% used")
+            elif progress['percentage'] > warning_threshold * 100:
+                alerts.append(f"Warning: Approaching budget in {progress['category']}: {progress['percentage']:.1f}% used")
+
         return jsonify({
             'financial_summary': {
                 'total_income': total_income,
@@ -490,7 +532,9 @@ def get_dashboard_data():
                 'total_gain_loss': total_investment_gain_loss
             },
             'expense_breakdown': expense_breakdown,
-            'recent_transactions': [t.to_dict() for t in recent_transactions]
+            'recent_transactions': [t.to_dict() for t in recent_transactions],
+            'budget_progress': budget_progress,
+            'alerts': alerts
         })
         
     except Exception as e:

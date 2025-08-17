@@ -18,6 +18,7 @@ class Category(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
     color = db.Column(db.String(7), nullable=False, default='#007bff')  # Hex color
+    budget_limit = db.Column(db.Numeric(10, 2), nullable=True, default=0.0)  # Monthly budget for expenses
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -31,6 +32,7 @@ class Category(db.Model):
             'name': self.name,
             'type': self.type,
             'color': self.color,
+            'budget_limit': float(self.budget_limit) if self.budget_limit else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

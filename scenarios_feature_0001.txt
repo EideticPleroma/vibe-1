@@ -1,0 +1,11 @@
+- Scenario 1: Set budget for expense category (Positive)
+  - Steps: POST /api/categories with budget_limit.
+  - Expected: 201, budget saved.
+
+- Scenario 2: Set budget for income category (Negative)
+  - Steps: POST income category with budget_limit.
+  - Expected: Budget ignored or error.
+
+- Scenario 3: Update budget to zero (Edge)
+  - Steps: PUT with budget_limit=0.
+  - Expected: 200, budget set to 0.

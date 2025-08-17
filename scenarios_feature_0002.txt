@@ -1,0 +1,7 @@
+- Scenario 1: View budget progress (Positive)
+  - Steps: GET /api/dashboard with budgeted categories.
+  - Expected: budget_progress array with spent and percentage.
+
+- Scenario 2: Progress with no spending (Edge)
+  - Steps: GET after setting budget but no transactions.
+  - Expected: spent=0, percentage=0.

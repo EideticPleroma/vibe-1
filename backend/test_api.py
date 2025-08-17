@@ -113,6 +113,22 @@ def test_delete_category_with_transactions(populated_db):
     assert response.status_code == 400 # Expect 400 as per route handler
     assert 'error' in response.get_json()
 
+def test_create_category_with_budget(populated_db):
+    data = {'name': 'Test Expense', 'type': 'expense', 'budget_limit': 100.0}
+    response = populated_db.post('/api/categories', json=data)
+    assert response.status_code == 201
+    assert response.get_json()['budget_limit'] == 100.0
+
+def test_update_category_budget(populated_db):
+    response = populated_db.put('/api/categories/1', json={'budget_limit': 200.0})
+    assert response.status_code == 200
+    assert response.get_json()['budget_limit'] == 200.0
+
+def test_budget_only_for_expense(populated_db):
+    response = populated_db.put('/api/categories/2', json={'budget_limit': 100.0})  # Assuming ID 2 is income
+    assert response.status_code == 200  # But budget should not be set or ignored
+    assert 'budget_limit' not in response.get_json() or response.get_json()['budget_limit'] is None
+
 # ============================================================================
 # TRANSACTION TESTS
 # ============================================================================
@@ -209,6 +225,8 @@ def test_get_dashboard_data(populated_db):
     assert 'investment_summary' in data
     assert 'expense_breakdown' in data
     assert 'recent_transactions' in data
+    assert 'budget_progress' in data
+    assert 'alerts' in data
     assert data['financial_summary']['total_income'] == 2000.00 # From t2
     # Food: -50, Rent: -1000 => total expenses: 1050
     assert data['financial_summary']['total_expenses'] == 1050.00
