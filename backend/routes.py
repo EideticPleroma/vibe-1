@@ -51,6 +51,16 @@ def create_category():
         if existing:
             return handle_error("Category with this name already exists")
         
+        if 'budget_limit' in data:
+            if data['type'] != 'expense':
+                return handle_error("Budget limit can only be set for expense categories")
+            try:
+                budget = float(data['budget_limit'])
+                if budget < 0:
+                    return handle_error("Budget limit must be non-negative")
+            except ValueError:
+                return handle_error("Invalid budget limit value")
+        
         # Create new category
         category = Category(
             name=data['name'],

@@ -126,8 +126,18 @@ def test_update_category_budget(populated_db):
 
 def test_budget_only_for_expense(populated_db):
     response = populated_db.put('/api/categories/2', json={'budget_limit': 100.0})  # Assuming ID 2 is income
-    assert response.status_code == 200  # But budget should not be set or ignored
-    assert 'budget_limit' not in response.get_json() or response.get_json()['budget_limit'] is None
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'error' in data
+    assert data['error'] == "Budget limit can only be set for expense categories"
+
+def test_create_budget_only_for_expense(client):
+    data = {'name': 'Test Income', 'type': 'income', 'budget_limit': 100.0}
+    response = client.post('/api/categories', json=data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'error' in data
+    assert data['error'] == "Budget limit can only be set for expense categories"
 
 # ============================================================================
 # TRANSACTION TESTS
