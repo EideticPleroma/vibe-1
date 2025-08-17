@@ -82,7 +82,9 @@ def create_category():
 def update_category(category_id):
     """Update an existing budget category"""
     try:
-        category = Category.query.get_or_404(category_id)
+        category = db.session.get(Category, category_id)
+        if category is None:
+            return handle_error("Category not found", 404)
         data = request.get_json()
         
         if 'name' in data:
@@ -122,7 +124,9 @@ def update_category(category_id):
 def delete_category(category_id):
     """Delete a budget category"""
     try:
-        category = Category.query.get_or_404(category_id)
+        category = db.session.get(Category, category_id)
+        if category is None:
+            return handle_error("Category not found", 404)
         
         # Check if category has transactions
         if category.transactions:
@@ -216,7 +220,7 @@ def create_transaction():
             return handle_error("Type must be 'income' or 'expense'")
         
         # Validate category exists
-        category = Category.query.get(data['category_id'])
+        category = db.session.get(Category, data['category_id'])
         if not category:
             return handle_error("Invalid category_id")
         
@@ -250,7 +254,9 @@ def create_transaction():
 def update_transaction(transaction_id):
     """Update an existing transaction"""
     try:
-        transaction = Transaction.query.get_or_404(transaction_id)
+        transaction = db.session.get(Transaction, transaction_id)
+        if transaction is None:
+            return handle_error("Transaction not found", 404)
         data = request.get_json()
         
         if 'date' in data:
@@ -269,7 +275,7 @@ def update_transaction(transaction_id):
                 return handle_error("Invalid amount value")
         
         if 'category_id' in data:
-            category = Category.query.get(data['category_id'])
+            category = db.session.get(Category, data['category_id'])
             if not category:
                 return handle_error("Invalid category_id")
             transaction.category_id = data['category_id']
@@ -298,7 +304,9 @@ def update_transaction(transaction_id):
 def delete_transaction(transaction_id):
     """Delete a transaction"""
     try:
-        transaction = Transaction.query.get_or_404(transaction_id)
+        transaction = db.session.get(Transaction, transaction_id)
+        if transaction is None:
+            return handle_error("Transaction not found", 404)
         db.session.delete(transaction)
         db.session.commit()
         
@@ -372,7 +380,9 @@ def create_investment():
 def update_investment(investment_id):
     """Update an existing investment"""
     try:
-        investment = Investment.query.get_or_404(investment_id)
+        investment = db.session.get(Investment, investment_id)
+        if investment is None:
+            return handle_error("Investment not found", 404)
         data = request.get_json()
         
         if 'asset_name' in data:
@@ -426,7 +436,9 @@ def update_investment(investment_id):
 def delete_investment(investment_id):
     """Delete an investment holding"""
     try:
-        investment = Investment.query.get_or_404(investment_id)
+        investment = db.session.get(Investment, investment_id)
+        if investment is None:
+            return handle_error("Investment not found", 404)
         db.session.delete(investment)
         db.session.commit()
         
@@ -513,7 +525,7 @@ def get_dashboard_data():
                 spent_query = spent_query.filter(Transaction.date >= start_date)
             if end_date:
                 spent_query = spent_query.filter(Transaction.date <= end_date)
-            spent = abs(spent_query.scalar() or 0)
+            spent = abs(float(spent_query.scalar() or 0))
             progress = {
                 'category': cat.name,
                 'budget': float(cat.budget_limit),

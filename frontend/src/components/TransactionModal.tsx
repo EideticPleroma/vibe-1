@@ -32,29 +32,52 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
         date: transaction.date,
         amount: transaction.absolute_amount,
         category_id: transaction.category_id,
-        description: transaction.description,
+        description: transaction.description || '',
         type: transaction.type,
       });
-    } else {
+    } else if (categories.length > 0) {
       setFormData({
         date: new Date().toISOString().split('T')[0],
         amount: 0,
-        category_id: categories.find(c => c.type === 'expense')?.id || 0,
+        category_id: categories.find(c => c.type === 'expense')?.id || categories[0]?.id || 0,
         description: '',
         type: 'expense',
       });
     }
   }, [transaction, categories]);
 
+  // Reset form when modal opens/closes
+  useEffect(() => {
+    if (isOpen && !transaction && categories.length > 0) {
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        amount: 0,
+        category_id: categories.find(c => c.type === 'expense')?.id || categories[0]?.id || 0,
+        description: '',
+        type: 'expense',
+      });
+    }
+  }, [isOpen, transaction, categories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.category_id || !formData.description || formData.amount <= 0) {
+    console.log('Form submission attempt:', formData);
+    
+    if (!formData.category_id || formData.amount <= 0) {
+      console.log('Form validation failed:', { 
+        category_id: formData.category_id, 
+        amount: formData.amount 
+      });
       return;
     }
 
     setLoading(true);
     try {
+      console.log('Submitting form data:', formData);
       await onSubmit(formData);
+      console.log('Form submitted successfully');
+    } catch (error) {
+      console.error('Form submission error:', error);
     } finally {
       setLoading(false);
     }
@@ -64,7 +87,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || categories.length === 0) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -172,14 +195,13 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
 
               {/* Description */}
               <div>
-                <label className="label">Description</label>
+                <label className="label">Description (optional)</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   className="input"
                   rows={3}
                   placeholder="Enter transaction description..."
-                  required
                 />
               </div>
 
@@ -196,7 +218,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                 <button
                   type="submit"
                   className="btn-primary"
-                  disabled={loading || !formData.category_id || !formData.description || formData.amount <= 0}
+                  disabled={loading || !formData.category_id || formData.amount <= 0}
                 >
                   {loading ? 'Saving...' : (transaction ? 'Update' : 'Create')}
                 </button>

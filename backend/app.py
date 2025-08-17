@@ -17,6 +17,8 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     # Use absolute path for database to avoid conflicts
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'finance_app.db')
+    # db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
+    db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     

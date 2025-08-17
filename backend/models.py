@@ -8,6 +8,8 @@ from datetime import datetime, date
 from sqlalchemy.ext.hybrid import hybrid_property
 import json
 
+from datetime import timezone
+
 db = SQLAlchemy()
 
 class Category(db.Model):
@@ -19,8 +21,8 @@ class Category(db.Model):
     type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
     color = db.Column(db.String(7), nullable=False, default='#007bff')  # Hex color
     budget_limit = db.Column(db.Numeric(10, 2), nullable=True, default=0.0)  # Monthly budget for expenses
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     transactions = db.relationship('Transaction', backref='category', lazy=True)
@@ -50,8 +52,8 @@ class Transaction(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
     description = db.Column(db.String(255), nullable=True)
     type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     @hybrid_property
     def is_income(self):
@@ -100,8 +102,8 @@ class Investment(db.Model):
     purchase_price = db.Column(db.Numeric(10, 2), nullable=False)
     current_price = db.Column(db.Numeric(10, 2), nullable=False)
     purchase_date = db.Column(db.Date, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     @hybrid_property
     def total_invested(self):
@@ -133,7 +135,7 @@ class Investment(db.Model):
     def update_current_price(self, new_price):
         """Update current price and recalculate values"""
         self.current_price = new_price
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         return self
     
     def to_dict(self):

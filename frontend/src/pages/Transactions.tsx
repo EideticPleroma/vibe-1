@@ -53,6 +53,7 @@ const Transactions: React.FC = () => {
   const fetchCategories = useCallback(async () => {
     try {
       const categoriesData = await categoriesApi.getAll();
+      console.log('Categories loaded:', categoriesData);
       setCategories(categoriesData);
     } catch (err) {
       console.error('Categories error:', err);
@@ -66,7 +67,9 @@ const Transactions: React.FC = () => {
 
   const handleCreateTransaction = async (data: TransactionFormData) => {
     try {
-      await transactionsApi.create(data);
+      console.log('Creating transaction with data:', data);
+      const result = await transactionsApi.create(data);
+      console.log('Transaction created successfully:', result);
       setShowModal(false);
       fetchTransactions();
     } catch (err) {
@@ -140,7 +143,10 @@ const Transactions: React.FC = () => {
           <p className="text-gray-600">Manage your income and expenses</p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            console.log('Opening modal, categories:', categories);
+            setShowModal(true);
+          }}
           className="btn-primary flex items-center space-x-2 mt-4 sm:mt-0"
         >
           <Plus className="h-5 w-5" />
@@ -325,7 +331,10 @@ const Transactions: React.FC = () => {
             setShowModal(false);
             setEditingTransaction(null);
           }}
-          onSubmit={editingTransaction ? handleUpdateTransaction : handleCreateTransaction}
+          onSubmit={editingTransaction ? 
+            (data: TransactionFormData) => handleUpdateTransaction(editingTransaction.id, data) : 
+            handleCreateTransaction
+          }
           transaction={editingTransaction}
           categories={categories}
         />

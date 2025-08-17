@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
       setDashboardData(dashboard);
       setSpendingTrends(trends);
     } catch (err) {
-      setError('Failed to load dashboard data');
+      setError(err.message || 'Failed to load dashboard data - check console for details');
       console.error('Dashboard error:', err);
     } finally {
       setLoading(false);
