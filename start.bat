@@ -25,3 +25,4 @@ start "Frontend App" cmd /k "cd frontend && npm start"
 
 echo Servers started! Backend on http://localhost:5000, Frontend on http://localhost:3000.
 pause
+
