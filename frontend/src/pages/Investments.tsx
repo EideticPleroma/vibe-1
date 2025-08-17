@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, TrendingUp, TrendingDown, Edit, Trash2, DollarSign, X } from 'lucide-react';
-import { investmentsApi, formatCurrency, formatPercentage, formatDate } from '../services/api';
+import { investmentsApi, formatCurrency, formatPercentage, formatDate } from '../services/api.ts';
 import { Investment, InvestmentFormData } from '../types';
 
 const Investments: React.FC = () => {
@@ -18,11 +18,7 @@ const Investments: React.FC = () => {
     purchase_date: new Date().toISOString().split('T')[0],
   });
 
-  useEffect(() => {
-    fetchInvestments();
-  }, []);
-
-  const fetchInvestments = async () => {
+  const fetchInvestments = useCallback(async () => {
     try {
       setLoading(true);
       const investmentsData = await investmentsApi.getAll();
@@ -33,7 +29,11 @@ const Investments: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchInvestments();
+  }, [fetchInvestments]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

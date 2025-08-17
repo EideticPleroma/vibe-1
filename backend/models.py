@@ -189,13 +189,15 @@ def get_net_income(start_date=None, end_date=None):
 
 def get_total_investment_value():
     """Get total current value of all investments"""
-    result = Investment.query.with_entities(db.func.sum(Investment.current_value)).scalar()
-    return float(result) if result else 0.0
+    result = db.session.query(db.func.sum(Investment.quantity * Investment.current_price)).scalar()
+    return float(result or 0)
 
 def get_total_investment_gain_loss():
     """Get total gain/loss across all investments"""
-    result = Investment.query.with_entities(db.func.sum(Investment.total_gain_loss)).scalar()
-    return float(result) if result else 0.0
+    result = db.session.query(db.func.sum(
+        (Investment.quantity * Investment.current_price) - (Investment.quantity * Investment.purchase_price)
+    )).scalar()
+    return float(result or 0)
 
 def update_investment_prices():
     """

@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, Eye } from 'lucide-react';
-import { transactionsApi, categoriesApi, formatCurrency, formatDate } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { transactionsApi, categoriesApi, formatCurrency, formatDate } from '../services/api.ts';
 import { Transaction, Category, TransactionFormData } from '../types';
-import TransactionModal from '../components/TransactionModal';
+import TransactionModal from '../components/TransactionModal.tsx';
 
 const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [filters, setFilters] = useState({
@@ -25,12 +24,7 @@ const Transactions: React.FC = () => {
     pages: 0,
   });
 
-  useEffect(() => {
-    fetchTransactions();
-    fetchCategories();
-  }, [filters, pagination.page]);
-
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -50,21 +44,25 @@ const Transactions: React.FC = () => {
         pages: response.pagination.pages,
       }));
     } catch (err) {
-      setError('Failed to load transactions');
       console.error('Transactions error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, pagination.page]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const categoriesData = await categoriesApi.getAll();
       setCategories(categoriesData);
     } catch (err) {
       console.error('Categories error:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+    fetchCategories();
+  }, [fetchTransactions, fetchCategories]);
 
   const handleCreateTransaction = async (data: TransactionFormData) => {
     try {

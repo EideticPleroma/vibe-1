@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Palette, X } from 'lucide-react';
-import { categoriesApi } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Edit, Trash2, X } from 'lucide-react';
+import { categoriesApi } from '../services/api.ts';
 import { Category, CategoryFormData } from '../types';
 
 const Categories: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState<CategoryFormData>({
@@ -15,22 +14,21 @@ const Categories: React.FC = () => {
     color: '#3b82f6',
   });
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       setLoading(true);
       const categoriesData = await categoriesApi.getAll();
       setCategories(categoriesData);
     } catch (err) {
-      setError('Failed to load categories');
       console.error('Categories error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

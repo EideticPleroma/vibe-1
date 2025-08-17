@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
-import { analyticsApi, formatCurrency, formatPercentage } from '../services/api';
+import { analyticsApi, formatCurrency, formatPercentage } from '../services/api.ts';
 import { SpendingTrends, InvestmentPerformance } from '../types';
 
 const Analytics: React.FC = () => {
@@ -11,11 +11,7 @@ const Analytics: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedMonths, setSelectedMonths] = useState(6);
 
-  useEffect(() => {
-    fetchAnalyticsData();
-  }, [selectedMonths]);
-
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
       const [trends, performance] = await Promise.all([
@@ -30,7 +26,11 @@ const Analytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonths]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [selectedMonths, fetchAnalyticsData]);
 
   if (loading) {
     return (

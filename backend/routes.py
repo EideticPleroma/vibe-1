@@ -104,7 +104,7 @@ def delete_category(category_id):
         
         # Check if category has transactions
         if category.transactions:
-            return handle_error("Cannot delete category with existing transactions")
+            return handle_error("Cannot delete category with existing transactions", 400)
         
         db.session.delete(category)
         db.session.commit()
@@ -451,23 +451,27 @@ def get_dashboard_data():
         expense_categories = db.session.query(
             Category.name,
             Category.color,
-            func.sum(Transaction.absolute_amount).label('total')
+            func.sum(Transaction.amount).label('total')
         ).join(Transaction).filter(
             Transaction.type == 'expense'
-        ).group_by(Category.id).all()
-        
+        )
+
         if start_date:
             expense_categories = expense_categories.filter(Transaction.date >= start_date)
         if end_date:
             expense_categories = expense_categories.filter(Transaction.date <= end_date)
-        
+
+        expense_categories = expense_categories.group_by(Category.id, Category.name, Category.color).all()
+
+        print(f"DEBUG: expense_categories: {expense_categories}")
+
         expense_breakdown = [
             {
                 'name': cat.name,
                 'color': cat.color,
-                'total': float(total)
+                'total': float(abs(cat.total)) if cat.total is not None else 0.0
             }
-            for cat, total in expense_categories
+            for cat in expense_categories
         ]
         
         # Recent transactions
@@ -506,18 +510,17 @@ def get_spending_trends():
         # Get monthly spending data
         monthly_data = db.session.query(
             func.strftime('%Y-%m', Transaction.date).label('month'),
-            func.sum(Transaction.absolute_amount).label('total')
+            func.sum(Transaction.amount).label('total')
         ).filter(
             Transaction.type == 'expense',
+            Transaction.amount < 0, # Only sum negative amounts for expenses
             Transaction.date >= start_date
-        ).group_by(
-            func.strftime('%Y-%m', Transaction.date)
-        ).order_by('month').all()
-        
+        ).group_by('month').order_by('month').all()
+
         trends = [
             {
                 'month': month,
-                'total': float(total)
+                'total': float(abs(total)) if total is not None else 0.0 # Ensure positive spending values and handle None
             }
             for month, total in monthly_data
         ]

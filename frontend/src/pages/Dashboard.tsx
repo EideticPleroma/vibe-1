@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Doughnut, Line } from 'react-chartjs-2';
 import { 
   TrendingUp, 
@@ -8,7 +8,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-import { dashboardApi, analyticsApi, formatCurrency, formatPercentage } from '../services/api';
+import { dashboardApi, analyticsApi, formatCurrency, formatPercentage } from '../services/api.ts';
 import { DashboardData, SpendingTrends } from '../types';
 
 const Dashboard: React.FC = () => {
@@ -17,26 +17,26 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const [dashboard, trends] = await Promise.all([
-          dashboardApi.getData(),
-          analyticsApi.getSpendingTrends(6)
-        ]);
-        setDashboardData(dashboard);
-        setSpendingTrends(trends);
-      } catch (err) {
-        setError('Failed to load dashboard data');
-        console.error('Dashboard error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dashboard, trends] = await Promise.all([
+        dashboardApi.getData(),
+        analyticsApi.getSpendingTrends(6)
+      ]);
+      setDashboardData(dashboard);
+      setSpendingTrends(trends);
+    } catch (err) {
+      setError('Failed to load dashboard data');
+      console.error('Dashboard error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   if (loading) {
     return (

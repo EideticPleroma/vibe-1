@@ -1,0 +1,144 @@
+Below, I'll provide a set of test scenarios for the key features of your Personal Finance App based on the backend endpoints and frontend interactions I've analyzed from the code (e.g., categories, transactions, investments, dashboard, and analytics). These scenarios are designed to cover positive cases (happy paths), negative cases (error handling), and edge cases (boundary conditions). They can be used for manual testing via tools like Postman for the API or through the frontend UI, or as a basis for expanding your automated test suite in `test_api.py`.
+
+I've grouped them by feature for clarity. Each scenario includes:
+- **Description**: What the test is checking.
+- **Steps**: How to execute it.
+- **Expected Outcome**: What should happen.
+- **Type**: Positive, Negative, or Edge.
+
+### 1. Categories Management
+Categories allow creating, reading, updating, and deleting budget categories (income/expense types).
+
+- **Scenario 1: Create a new category (Positive)**
+  - Description: Verify a new category can be added.
+  - Steps: POST to `/api/categories` with JSON body `{ "name": "Utilities", "type": "expense", "color": "#CCCCCC" }`.
+  - Expected Outcome: Response code 201, with the new category in the response body. GET `/api/categories` shows it listed.
+  
+- **Scenario 2: Create category with missing fields (Negative)**
+  - Description: Ensure validation prevents incomplete creations.
+  - Steps: POST to `/api/categories` with JSON body `{ "name": "Invalid" }` (missing "type").
+  - Expected Outcome: Response code 400, error message like "Name and type are required fields".
+  
+- **Scenario 3: Create duplicate category (Negative)**
+  - Description: Prevent duplicate names.
+  - Steps: Create a category with name "Groceries", then attempt to create another with the same name.
+  - Expected Outcome: Response code 400, error message like "Category with this name already exists".
+  
+- **Scenario 4: Update existing category (Positive)**
+  - Description: Verify updates to name/color.
+  - Steps: PUT to `/api/categories/<id>` with JSON body `{ "name": "Groceries Updated", "color": "#FF3333" }`.
+  - Expected Outcome: Response code 200, GET `/api/categories` reflects changes.
+  
+- **Scenario 5: Delete category with transactions (Negative)**
+  - Description: Prevent deletion if linked to transactions.
+  - Steps: Create a category, add a transaction to it, then DELETE `/api/categories/<id>`.
+  - Expected Outcome: Response code 400, error message like "Cannot delete category with existing transactions".
+  
+- **Scenario 6: Delete unused category (Positive)**
+  - Description: Allow deletion of unused categories.
+  - Steps: Create a category with no transactions, then DELETE `/api/categories/<id>`.
+  - Expected Outcome: Response code 200, GET `/api/categories` no longer lists it.
+  
+- **Scenario 7: Get categories with many entries (Edge)**
+  - Description: Handle large lists.
+  - Steps: Populate 100+ categories, then GET `/api/categories`.
+  - Expected Outcome: Response code 200, all categories returned without performance issues.
+
+### 2. Transactions Management
+Transactions involve income/expense entries with filtering and pagination.
+
+- **Scenario 1: Create a new transaction (Positive)**
+  - Description: Add a valid transaction.
+  - Steps: POST to `/api/transactions` with JSON body `{ "amount": 75.00, "category_id": 1, "type": "expense", "date": "2023-08-15", "description": "Dinner" }`.
+  - Expected Outcome: Response code 201, amount stored as negative for expenses. GET `/api/transactions` shows it.
+  
+- **Scenario 2: Create transaction with invalid category (Negative)**
+  - Description: Validate category existence.
+  - Steps: POST with non-existent "category_id".
+  - Expected Outcome: Response code 400, error like "Invalid category_id".
+  
+- **Scenario 3: Filter transactions by date range (Positive)**
+  - Description: Retrieve filtered results.
+  - Steps: GET `/api/transactions?start_date=2024-01-01&end_date=2024-01-31`.
+  - Expected Outcome: Response code 200, only transactions in range returned, with pagination metadata.
+  
+- **Scenario 4: Update transaction type (Edge)**
+  - Description: Change from income to expense and verify amount sign flip.
+  - Steps: Create income transaction, then PUT `/api/transactions/<id>` with `{ "type": "expense" }`.
+  - Expected Outcome: Response code 200, amount becomes negative, type updated.
+  
+- **Scenario 5: Delete non-existent transaction (Negative)**
+  - Description: Handle invalid IDs.
+  - Steps: DELETE `/api/transactions/999` (invalid ID).
+  - Expected Outcome: Response code 404, error like "Transaction not found".
+  
+- **Scenario 6: Paginate large transaction list (Edge)**
+  - Description: Test pagination with many records.
+  - Steps: Populate 100+ transactions, GET `/api/transactions?page=2&per_page=20`.
+  - Expected Outcome: Response code 200, correct page of results with pagination info (e.g., has_next: true).
+
+### 3. Investments Management
+Investments track holdings with calculations for value and gain/loss.
+
+- **Scenario 1: Create new investment (Positive)**
+  - Description: Add a stock holding.
+  - Steps: POST to `/api/investments` with JSON body `{ "asset_name": "GOOG", "asset_type": "stock", "quantity": 5.0, "purchase_price": 100.0, "current_price": 105.0, "purchase_date": "2024-01-01" }`.
+  - Expected Outcome: Response code 201, calculations (e.g., total_gain_loss) correct in response.
+  
+- **Scenario 2: Update investment price (Positive)**
+  - Description: Verify gain/loss recalculation.
+  - Steps: Create investment, then PUT `/api/investments/<id>` with `{ "current_price": 120.0 }`.
+  - Expected Outcome: Response code 200, updated gain/loss percentage reflected.
+  
+- **Scenario 3: Create with invalid quantity (Negative)**
+  - Description: Validate positive numbers.
+  - Steps: POST with "quantity": -5.0.
+  - Expected Outcome: Response code 400, error like "Quantity must be positive".
+  
+- **Scenario 4: Delete investment (Positive)**
+  - Description: Remove a holding.
+  - Steps: Create investment, then DELETE `/api/investments/<id>`.
+  - Expected Outcome: Response code 200, GET `/api/investments` no longer lists it.
+  
+- **Scenario 5: Get investments with zero holdings (Edge)**
+  - Description: Handle empty portfolio.
+  - Steps: Delete all investments, then GET `/api/investments`.
+  - Expected Outcome: Response code 200, empty array returned.
+
+### 4. Dashboard Summary
+Provides financial overviews.
+
+- **Scenario 1: Get dashboard data with date range (Positive)**
+  - Description: Fetch summary for specific period.
+  - Steps: GET `/api/dashboard?start_date=2024-01-01&end_date=2024-01-31`.
+  - Expected Outcome: Response code 200, correct totals (income, expenses, net_income, investment_value, etc.).
+  
+- **Scenario 2: Get dashboard with invalid date (Negative)**
+  - Description: Validate date format.
+  - Steps: GET `/api/dashboard?start_date=invalid`.
+  - Expected Outcome: Response code 400, error like "Invalid start_date format".
+  
+- **Scenario 3: Dashboard with no data (Edge)**
+  - Description: Handle empty database.
+  - Steps: Clear transactions/investments, GET `/api/dashboard`.
+  - Expected Outcome: Response code 200, all totals zero, empty breakdowns.
+
+### 5. Analytics
+Includes spending trends and investment performance.
+
+- **Scenario 1: Get spending trends (Positive)**
+  - Description: Retrieve monthly expenses.
+  - Steps: GET `/api/analytics/spending-trends?months=6`.
+  - Expected Outcome: Response code 200, trends array with monthly totals.
+  
+- **Scenario 2: Get investment performance (Positive)**
+  - Description: Fetch sorted performance data.
+  - Steps: GET `/api/analytics/investment-performance`.
+  - Expected Outcome: Response code 200, performance_data sorted by gain_loss_percentage descending.
+  
+- **Scenario 3: Spending trends with no expenses (Edge)**
+  - Description: Handle zero spending.
+  - Steps: Clear expense transactions, GET `/api/analytics/spending-trends?months=1`.
+  - Expected Outcome: Response code 200, trends with total: 0.0.
+
+These scenarios cover ~80% of the core functionality based on the code. If you have specific priorities (e.g., more focus on frontend UI testing or integration tests), let me know, and I can expand or automate some in `test_api.py`. If you'd like me to run any of these via tools like curl or add them to your test suite, just say the word!
