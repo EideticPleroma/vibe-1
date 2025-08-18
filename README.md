@@ -57,7 +57,7 @@ vibe-1/
 └── README.md               # This file
 ```
 
-## Quick Start ((Won't work unless you have repo in specific folder, will fix))
+## Quick Start ((not tested in a different file location other than the one I am using))
 
 The easiest way to get started is using the provided batch file that handles both backend and frontend setup:
 
