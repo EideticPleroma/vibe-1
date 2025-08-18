@@ -1,8 +1,9 @@
 @echo off
 REM Verify and switch to root workspace directory
-cd /d D:\Projects\vibe-1
+set ROOT=%~dp0
+cd /d %ROOT%
 if not %errorlevel%==0 (
-    echo Error: Could not switch to D:\Projects\vibe-1. Please run from there.
+    echo Error: Could not switch to the script's directory: %ROOT%. Please check the path.
     pause
     exit /b
 )
