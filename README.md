@@ -64,7 +64,7 @@ To run this application, you will need:
 - Python 3.8 or higher installed (download from [python.org](https://www.python.org/downloads/)). When installing, make sure to check the option to add Python to your PATH.
 - Node.js 16 or higher installed (download from [nodejs.org](https://nodejs.org/))
 
-## Quick Start ((not tested in a different file location other than the one I am using))
+## Quick Start
 
 The easiest way to get started is using the provided batch file that handles both backend and frontend setup:
 
