@@ -43,8 +43,12 @@ vibe-1/
 │   ├── app.py              # Main Flask application
 │   ├── models.py           # Database models
 │   ├── routes.py           # API routes
-│   ├── database.py         # Database setup
-│   └── requirements.txt    # Python dependencies
+│   ├── requirements.txt    # Python dependencies
+│   ├── instance/           # SQLite database location
+│   │   └── finance_app.db
+│   ├── tests/              # Backend tests
+│   ├── seed_data.py        # Basic sample data seeding
+│   └── seed_budgeting_data.py # Extended budgeting sample data
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/     # React components
@@ -53,6 +57,7 @@ vibe-1/
 │   │   └── types/          # TypeScript types
 │   ├── package.json        # Node dependencies
 │   └── README.md           # Frontend setup
+├── features/               # Product documentation (epics, features, tests)
 ├── venv/                   # Python Virtual Environment
 └── README.md               # This file
 ```
@@ -208,7 +213,7 @@ The app includes several areas where you can add your own logic:
    - Verify CORS is properly configured (should work automatically)
 
 3. **Port Already in Use**
-   - Backend: Change port in `backend/app.py` (line 95)
+   - Backend: Change port in `backend/app.py`
    - Frontend: Change port in `frontend/package.json` proxy setting
 
 4. **Database Issues**
@@ -254,3 +259,10 @@ Feel free to customize and extend this framework according to your needs. The mo
 ## License
 
 This project is open source and available under the MIT License.
+
+---
+
+## Additional Documentation
+
+- Frontend guide: `frontend/README.md`
+- Feature organization and specifications: `features/PROJECT_README.md`

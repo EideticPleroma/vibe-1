@@ -42,6 +42,8 @@ React frontend for the Personal Finance App with TypeScript, Tailwind CSS, and C
 3. **Open your browser:**
    Navigate to `http://localhost:3000`
 
+For backend setup and full project instructions, see the root `README.md`.
+
 ### Build for Production
 
 ```bash

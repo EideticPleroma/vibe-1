@@ -23,6 +23,8 @@ def seed_budgeting_data():
     # Create Flask app context
     app = create_app()
     with app.app_context():
+        # Ensure tables exist before attempting to clear or insert data
+        db.create_all()
 
         # Clear existing data
         print("🧹 Clearing existing data...")

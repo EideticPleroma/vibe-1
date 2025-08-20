@@ -2,7 +2,7 @@
 
 ## 📋 Project Overview
 
-This document outlines the comprehensive feature organization for the Personal Finance App. The application is organized into major feature areas, each with its own epic, features, stories, tests, and scenarios.
+This document outlines the comprehensive feature organization for the Personal Finance App. For setup and run instructions, see the root `README.md`. This document focuses on epics, features, stories, tests, and scenarios.
 
 ## 🏗️ Architecture Overview
 

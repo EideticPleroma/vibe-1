@@ -15,6 +15,7 @@ from models import (
     get_transaction_budget_impact, get_budget_performance_score
 )
 from routes import api
+from models import Alert, NotificationPreference
 
 
 class TestAdvancedBudgetTracking(unittest.TestCase):
