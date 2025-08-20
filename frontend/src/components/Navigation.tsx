@@ -11,11 +11,8 @@ import {
   DollarSign,
   PiggyBank,
   Target,
-<<<<<<< HEAD
-  Calculator
-=======
+  Calculator,
   Bell
->>>>>>> origin/main
 } from 'lucide-react';
 
 const Navigation: React.FC = () => {
