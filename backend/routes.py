@@ -5,11 +5,13 @@ Provides RESTful endpoints for categories, transactions, and investments
 
 from flask import Blueprint, request, jsonify
 from models import (
-    db, Category, Transaction, Investment, Alert, NotificationPreference, Income,
+    db, Category, Transaction, Investment, Alert, NotificationPreference, Income, BudgetMethodology,
     get_total_income, get_total_expenses, get_net_income,
     get_total_investment_value, get_total_investment_gain_loss,
     get_budget_progress_advanced, get_budget_historical_trends,
-    get_transaction_budget_impact, get_budget_performance_score
+    get_transaction_budget_impact, get_budget_performance_score,
+    get_active_methodology, set_active_methodology, calculate_methodology_budget,
+    apply_methodology_to_categories, BudgetMethodologyFactory
 )
 from datetime import datetime, date
 from sqlalchemy import desc, func
@@ -1855,3 +1857,368 @@ def _get_health_recommendation(health_score):
         return "Review spending patterns and adjust budget limits"
     else:
         return "Significant budget adjustments needed to get back on track"
+
+# ============================================================================
+# BUDGET METHODOLOGY ROUTES (Feature 1005)
+# ============================================================================
+
+@api.route('/budget/methodologies', methods=['GET'])
+def get_budget_methodologies():
+    """Get all available budget methodologies"""
+    try:
+        methodologies = BudgetMethodology.query.all()
+        return jsonify([methodology.to_dict() for methodology in methodologies])
+    except Exception as e:
+        return handle_error(f"Error fetching budget methodologies: {str(e)}", 500)
+
+@api.route('/budget/methodologies', methods=['POST'])
+def create_budget_methodology():
+    """Create a new budget methodology"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or 'name' not in data or 'methodology_type' not in data:
+            return handle_error("Name and methodology_type are required fields")
+        
+        # Validate methodology type
+        valid_types = ['zero_based', 'percentage_based', 'envelope']
+        if data['methodology_type'] not in valid_types:
+            return handle_error(f"methodology_type must be one of: {', '.join(valid_types)}")
+        
+        # Check if methodology already exists
+        existing = BudgetMethodology.query.filter_by(name=data['name']).first()
+        if existing:
+            return handle_error("Methodology with this name already exists")
+        
+        # Validate configuration if provided
+        configuration = data.get('configuration', {})
+        if configuration and data['methodology_type'] == 'percentage_based':
+            # Validate percentage configuration
+            needs = configuration.get('needs_percentage', 50)
+            wants = configuration.get('wants_percentage', 30)
+            savings = configuration.get('savings_percentage', 20)
+            
+            if needs + wants + savings != 100:
+                return handle_error("Percentage-based configuration must sum to 100%")
+        
+        # Create new methodology
+        methodology = BudgetMethodology(
+            name=data['name'],
+            description=data.get('description', ''),
+            methodology_type=data['methodology_type'],
+            is_active=data.get('is_active', False),
+            is_default=data.get('is_default', False)
+        )
+        
+        if configuration:
+            methodology.set_configuration(configuration)
+        
+        # If setting as active, deactivate others first
+        if data.get('is_active', False):
+            BudgetMethodology.query.update({'is_active': False})
+        
+        db.session.add(methodology)
+        db.session.commit()
+        
+        return jsonify(methodology.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error creating budget methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>', methods=['PUT'])
+def update_budget_methodology(methodology_id):
+    """Update an existing budget methodology"""
+    try:
+        methodology = db.session.get(BudgetMethodology, methodology_id)
+        if methodology is None:
+            return handle_error("Budget methodology not found", 404)
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            # Check if new name conflicts with existing methodology
+            existing = BudgetMethodology.query.filter_by(name=data['name']).first()
+            if existing and existing.id != methodology_id:
+                return handle_error("Methodology with this name already exists")
+            methodology.name = data['name']
+        
+        if 'description' in data:
+            methodology.description = data['description']
+        
+        if 'methodology_type' in data:
+            valid_types = ['zero_based', 'percentage_based', 'envelope']
+            if data['methodology_type'] not in valid_types:
+                return handle_error(f"methodology_type must be one of: {', '.join(valid_types)}")
+            methodology.methodology_type = data['methodology_type']
+        
+        if 'configuration' in data:
+            # Validate configuration
+            configuration = data['configuration']
+            if configuration and methodology.methodology_type == 'percentage_based':
+                needs = configuration.get('needs_percentage', 50)
+                wants = configuration.get('wants_percentage', 30)
+                savings = configuration.get('savings_percentage', 20)
+                
+                if needs + wants + savings != 100:
+                    return handle_error("Percentage-based configuration must sum to 100%")
+            
+            methodology.set_configuration(configuration)
+        
+        if 'is_active' in data:
+            if data['is_active']:
+                # Deactivate all other methodologies
+                BudgetMethodology.query.update({'is_active': False})
+            methodology.is_active = data['is_active']
+        
+        if 'is_default' in data:
+            methodology.is_default = data['is_default']
+        
+        db.session.commit()
+        return jsonify(methodology.to_dict())
+        
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error updating budget methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>', methods=['DELETE'])
+def delete_budget_methodology(methodology_id):
+    """Delete a budget methodology"""
+    try:
+        methodology = db.session.get(BudgetMethodology, methodology_id)
+        if methodology is None:
+            return handle_error("Budget methodology not found", 404)
+        
+        # Prevent deletion of active methodology
+        if methodology.is_active:
+            return handle_error("Cannot delete active methodology. Please activate another methodology first.", 400)
+        
+        db.session.delete(methodology)
+        db.session.commit()
+        
+        return jsonify({'message': 'Budget methodology deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error deleting budget methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/active', methods=['GET'])
+def get_active_methodology_endpoint():
+    """Get the currently active budget methodology"""
+    try:
+        methodology = get_active_methodology()
+        if methodology:
+            return jsonify(methodology.to_dict())
+        else:
+            return jsonify({'message': 'No active methodology set'}), 404
+    except Exception as e:
+        return handle_error(f"Error fetching active methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>/activate', methods=['POST'])
+def activate_methodology(methodology_id):
+    """Activate a specific budget methodology"""
+    try:
+        methodology = set_active_methodology(methodology_id)
+        if methodology:
+            return jsonify({
+                'message': f'Methodology "{methodology.name}" activated successfully',
+                'methodology': methodology.to_dict()
+            })
+        else:
+            return handle_error("Methodology not found", 404)
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error activating methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>/calculate', methods=['GET', 'POST'])
+def calculate_methodology_budget_endpoint(methodology_id):
+    """Calculate budget using specified methodology"""
+    try:
+        # Get total income from request or calculate from current month
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            total_income = data.get('total_income')
+        else:
+            total_income = request.args.get('total_income', type=float)
+        
+        calculation_result = calculate_methodology_budget(methodology_id, total_income)
+        
+        return jsonify({
+            'calculation_result': calculation_result,
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except ValueError as e:
+        return handle_error(str(e), 404)
+    except Exception as e:
+        return handle_error(f"Error calculating methodology budget: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>/apply', methods=['POST'])
+def apply_methodology_endpoint(methodology_id):
+    """Apply methodology calculations to category budgets"""
+    try:
+        data = request.get_json() or {}
+        total_income = data.get('total_income')
+        auto_update = data.get('auto_update', False)
+        
+        calculation_result = apply_methodology_to_categories(
+            methodology_id, total_income, auto_update
+        )
+        
+        return jsonify({
+            'message': 'Methodology applied successfully' if auto_update else 'Methodology calculated successfully',
+            'calculation_result': calculation_result,
+            'auto_updated': auto_update,
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except ValueError as e:
+        return handle_error(str(e), 404)
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error applying methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/<int:methodology_id>/validate', methods=['GET'])
+def validate_methodology_configuration(methodology_id):
+    """Validate methodology configuration"""
+    try:
+        methodology = db.session.get(BudgetMethodology, methodology_id)
+        if not methodology:
+            return handle_error("Methodology not found", 404)
+        
+        # Create engine to validate configuration
+        engine = BudgetMethodologyFactory.create_engine(methodology)
+        is_valid, error_message = engine.validate_configuration()
+        
+        return jsonify({
+            'methodology_id': methodology_id,
+            'methodology_name': methodology.name,
+            'is_valid': is_valid,
+            'error_message': error_message,
+            'configuration': methodology.get_configuration()
+        })
+        
+    except ValueError as e:
+        return handle_error(str(e), 404)
+    except Exception as e:
+        return handle_error(f"Error validating methodology: {str(e)}", 500)
+
+@api.route('/budget/methodologies/compare', methods=['POST'])
+def compare_methodologies():
+    """Compare multiple budget methodologies for the same income"""
+    try:
+        data = request.get_json()
+        methodology_ids = data.get('methodology_ids', [])
+        total_income = data.get('total_income')
+        
+        if not methodology_ids:
+            return handle_error("methodology_ids are required")
+        
+        if len(methodology_ids) > 5:
+            return handle_error("Cannot compare more than 5 methodologies at once")
+        
+        comparisons = []
+        
+        for methodology_id in methodology_ids:
+            try:
+                calculation_result = calculate_methodology_budget(methodology_id, total_income)
+                methodology = db.session.get(BudgetMethodology, methodology_id)
+                
+                comparisons.append({
+                    'methodology_id': methodology_id,
+                    'methodology_name': methodology.name,
+                    'methodology_type': methodology.methodology_type,
+                    'calculation_result': calculation_result
+                })
+                
+            except ValueError:
+                # Skip invalid methodologies
+                continue
+        
+        return jsonify({
+            'comparisons': comparisons,
+            'total_income': total_income,
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return handle_error(f"Error comparing methodologies: {str(e)}", 500)
+
+@api.route('/budget/methodologies/recommendations', methods=['GET'])
+def get_methodology_recommendations():
+    """Get personalized methodology recommendations based on user data"""
+    try:
+        # Get user's current spending patterns
+        current_date = date.today()
+        month_start = date(current_date.year, current_date.month, 1)
+        
+        total_income = get_total_income(month_start, current_date)
+        total_expenses = get_total_expenses(month_start, current_date)
+        
+        # Get categories with current spending
+        categories = Category.query.filter_by(type='expense').all()
+        spending_pattern = {}
+        
+        for category in categories:
+            spent = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == category.id,
+                Transaction.type == 'expense',
+                Transaction.date >= month_start
+            ).scalar()
+            spending_pattern[category.id] = abs(float(spent or 0))
+        
+        # Calculate savings rate
+        savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0
+        
+        recommendations = []
+        
+        # Recommend Zero-Based if low savings rate
+        if savings_rate < 10:
+            recommendations.append({
+                'methodology_type': 'zero_based',
+                'reason': 'Low savings rate detected. Zero-based budgeting helps ensure every dollar has a purpose.',
+                'confidence': 85,
+                'best_for': 'Users who want strict control over spending and to maximize savings'
+            })
+        
+        # Recommend 50/30/20 if balanced spending
+        if 10 <= savings_rate <= 25:
+            recommendations.append({
+                'methodology_type': 'percentage_based',
+                'reason': 'Balanced financial profile. The 50/30/20 rule provides good structure while maintaining flexibility.',
+                'confidence': 80,
+                'best_for': 'Users who want simple guidelines without micromanaging every expense'
+            })
+        
+        # Recommend Envelope if variable income or overspending issues
+        has_budget_issues = any(
+            category.budget_limit and spending_pattern.get(category.id, 0) > float(category.budget_limit)
+            for category in categories if category.budget_limit
+        )
+        
+        if has_budget_issues:
+            recommendations.append({
+                'methodology_type': 'envelope',
+                'reason': 'Detected overspending in some categories. Envelope budgeting provides strict spending limits.',
+                'confidence': 75,
+                'best_for': 'Users who struggle with overspending and need clear spending boundaries'
+            })
+        
+        # Sort by confidence score
+        recommendations.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        return jsonify({
+            'recommendations': recommendations,
+            'user_profile': {
+                'total_income': total_income,
+                'total_expenses': total_expenses,
+                'savings_rate': savings_rate,
+                'categories_count': len(categories),
+                'overspending_categories': sum(1 for cat in categories if cat.budget_limit and spending_pattern.get(cat.id, 0) > float(cat.budget_limit))
+            },
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return handle_error(f"Error generating methodology recommendations: {str(e)}", 500)
