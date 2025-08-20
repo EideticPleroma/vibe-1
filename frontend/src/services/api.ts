@@ -6,13 +6,19 @@ import {
   Category,
   Transaction,
   Investment,
+  Income,
   DashboardData,
   SpendingTrends,
   InvestmentPerformance,
+  BudgetVarianceResponse,
+  SpendingPatternsResponse,
+  ForecastsResponse,
+  RecommendationsResponse,
   TransactionsResponse,
   TransactionFormData,
   CategoryFormData,
   InvestmentFormData,
+  IncomeFormData,
   BudgetSuggestionsResponse,
   BudgetProgressResponse,
   EffectiveBudgetResponse,
@@ -23,19 +29,11 @@ import {
   TransactionBudgetImpactResponse,
   BudgetPerformanceResponse,
   BudgetPredictiveAlertsResponse,
-  ApiError,
-  // Budget Methodology types (Feature 1005)
-  BudgetMethodology,
-  BudgetMethodologyFormData,
-  MethodologyCalculationRequest,
-  MethodologyCalculationResponse,
-  MethodologyApplicationRequest,
-  MethodologyApplicationResponse,
-  MethodologyValidationResponse,
-  MethodologyComparisonRequest,
-  MethodologyComparisonResponse,
-  MethodologyRecommendationsResponse,
-  MethodologyActivationResponse,
+  AlertListResponse,
+  AlertItem,
+  NotificationPreferences,
+  AnomalyDetectionResponse,
+  ApiError
 } from '../types';
 
 // Create axios instance with base configuration
@@ -136,6 +134,29 @@ export const investmentsApi = {
   },
 };
 
+// Incomes API (Feature 2001)
+export const incomesApi = {
+  getAll: async (): Promise<Income[]> => {
+    const response = await api.get<Income[]>('/incomes');
+    return response.data;
+  },
+
+  create: async (data: IncomeFormData): Promise<Income> => {
+    const response = await api.post<Income>('/incomes', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: Partial<IncomeFormData>): Promise<Income> => {
+    const response = await api.put<Income>(`/incomes/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/incomes/${id}`);
+    return response.data;
+  },
+};
+
 // Dashboard API
 export const dashboardApi = {
   getData: async (params?: {
@@ -158,6 +179,27 @@ export const analyticsApi = {
 
   getInvestmentPerformance: async (): Promise<InvestmentPerformance> => {
     const response = await api.get<InvestmentPerformance>('/analytics/investment-performance');
+    return response.data;
+  },
+
+  // Feature 1004 endpoints
+  getBudgetVariance: async (params?: { start_date?: string; end_date?: string }): Promise<BudgetVarianceResponse> => {
+    const response = await api.get<BudgetVarianceResponse>('/analytics/budget-variance', { params });
+    return response.data;
+  },
+
+  getSpendingPatterns: async (days: number = 30): Promise<SpendingPatternsResponse> => {
+    const response = await api.get<SpendingPatternsResponse>('/analytics/spending-patterns', { params: { days } });
+    return response.data;
+  },
+
+  getForecasts: async (): Promise<ForecastsResponse> => {
+    const response = await api.get<ForecastsResponse>('/analytics/forecasts');
+    return response.data;
+  },
+
+  getRecommendations: async (): Promise<RecommendationsResponse> => {
+    const response = await api.get<RecommendationsResponse>('/analytics/recommendations');
     return response.data;
   },
 };
@@ -226,6 +268,58 @@ export const budgetApi = {
 
   getPredictiveAlerts: async (): Promise<BudgetPredictiveAlertsResponse> => {
     const response = await api.get<BudgetPredictiveAlertsResponse>('/budget/predictive-alerts');
+    return response.data;
+  },
+};
+
+// Intelligent Alerts API (Feature 1003)
+export const alertsApi = {
+  list: async (params?: {
+    status?: 'active' | 'dismissed' | 'snoozed';
+    severity?: 'high' | 'medium' | 'low';
+    type?: string;
+    category_id?: number;
+  }): Promise<AlertListResponse> => {
+    const response = await api.get<AlertListResponse>('/alerts', { params });
+    return response.data;
+  },
+
+  create: async (data: {
+    type: string;
+    message: string;
+    category_id?: number;
+    severity?: 'high' | 'medium' | 'low';
+    channels?: string[];
+    metadata?: Record<string, any>;
+  }): Promise<AlertItem> => {
+    const response = await api.post<AlertItem>('/alerts', data);
+    return response.data;
+  },
+
+  dismiss: async (alertId: number): Promise<{ message: string; alert: AlertItem }> => {
+    const response = await api.post<{ message: string; alert: AlertItem }>(`/alerts/${alertId}/dismiss`);
+    return response.data;
+  },
+
+  snooze: async (alertId: number, hours: number = 24): Promise<{ message: string; alert: AlertItem }> => {
+    const response = await api.post<{ message: string; alert: AlertItem }>(`/alerts/${alertId}/snooze`, { hours });
+    return response.data;
+  },
+
+  getPreferences: async (): Promise<{ preferences: NotificationPreferences }> => {
+    const response = await api.get<{ preferences: NotificationPreferences }>('/alerts/preferences');
+    return response.data;
+  },
+
+  updatePreferences: async (
+    prefs: Partial<NotificationPreferences>
+  ): Promise<{ preferences: NotificationPreferences }> => {
+    const response = await api.post<{ preferences: NotificationPreferences }>('/alerts/preferences', prefs);
+    return response.data;
+  },
+
+  detectAnomaly: async (data: { category_id: number; amount: number; multiplier?: number }): Promise<AnomalyDetectionResponse> => {
+    const response = await api.post<AnomalyDetectionResponse>('/alerts/anomalies/detect', data);
     return response.data;
   },
 };

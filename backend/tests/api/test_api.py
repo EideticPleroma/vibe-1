@@ -266,3 +266,72 @@ def test_get_investment_performance(populated_db):
     assert data['performance_data'][0]['gain_loss_percentage'] == 10.0 # (2200-2000)/2000 * 100 = 10%
     assert data['performance_data'][1]['asset_name'] == 'AAPL'
     assert data['performance_data'][1]['gain_loss_percentage'] == (10/150)*100 # (160-150)/150 * 100 = 6.66% approx
+
+# ============================================================================
+# FEATURE 1004 - BUDGET ANALYTICS TESTS
+# ============================================================================
+
+def test_budget_variance_endpoint(populated_db):
+    # Ensure budgets exist for expense categories
+    populated_db.put('/api/categories/1', json={'budget_limit': 100.0})  # Food
+    populated_db.put('/api/categories/3', json={'budget_limit': 1000.0}) # Rent
+
+    # Use a period that covers both transactions
+    from datetime import date, timedelta
+    start_date = (date.today() - timedelta(days=40)).strftime('%Y-%m-%d')
+    end_date = date.today().strftime('%Y-%m-%d')
+
+    response = populated_db.get(f'/api/analytics/budget-variance?start_date={start_date}&end_date={end_date}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'categories' in data and 'summary' in data
+    # Expect at least Food and Rent present
+    names = [c['category_name'] for c in data['categories']]
+    assert 'Food' in names
+    assert 'Rent' in names
+
+def test_spending_patterns_endpoint(populated_db):
+    response = populated_db.get('/api/analytics/spending-patterns?days=30')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'top_categories' in data
+    assert isinstance(data['top_categories'], list)
+
+def test_forecasts_endpoint(populated_db):
+    # Add budgets to enable forecasts
+    populated_db.put('/api/categories/1', json={'budget_limit': 120.0})  # Food
+    response = populated_db.get('/api/analytics/forecasts')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'forecasts' in data
+    # At least one forecast row may exist if budgets are set
+    assert isinstance(data['forecasts'], list)
+
+def test_recommendations_endpoint(populated_db):
+    # Configure budget tightness to trigger recommendations
+    populated_db.put('/api/categories/1', json={'budget_limit': 60.0})
+    # Add extra expense to tighten pace
+    extra_tx = {
+        'date': date.today().strftime('%Y-%m-%d'),
+        'amount': 20.0,
+        'category_id': 1,
+        'description': 'Extra food expense',
+        'type': 'expense'
+    }
+    populated_db.post('/api/transactions', json=extra_tx)
+
+    response = populated_db.get('/api/analytics/recommendations')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'recommendations' in data
+    assert isinstance(data['recommendations'], list)
+
+def test_export_budget_variance_csv(populated_db):
+    # Ensure budget for Food
+    populated_db.put('/api/categories/1', json={'budget_limit': 100.0})
+    response = populated_db.get('/api/analytics/export?report=budget_variance&format=csv')
+    assert response.status_code == 200
+    # In Flask test client, response.data is bytes
+    csv_text = response.data.decode('utf-8')
+    assert 'Category' in csv_text
+    assert 'Food' in csv_text

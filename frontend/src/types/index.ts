@@ -49,6 +49,18 @@ export interface Investment {
   updated_at: string;
 }
 
+// Feature 2001 - Income types
+export interface Income {
+  id: number;
+  amount: number;
+  type?: string | null;
+  frequency: 'weekly' | 'bi-weekly' | 'biweekly' | 'monthly' | 'annually' | 'yearly';
+  source_name: string;
+  is_bonus: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DashboardData {
   financial_summary: {
     total_income: number;
@@ -88,6 +100,73 @@ export interface InvestmentPerformance {
     gain_loss_percentage: number;
     is_profitable: boolean;
   }>;
+}
+
+// Feature 1004 - Budget Analytics Types
+export interface BudgetVarianceItem {
+  category_id: number;
+  category_name: string;
+  budget_limit: number;
+  spent_amount: number;
+  variance_amount: number;
+  variance_percentage: number;
+  status: 'over' | 'warning' | 'under' | 'no_budget';
+  recommendation: string;
+}
+
+export interface BudgetVarianceResponse {
+  period: { start_date: string; end_date: string };
+  categories: BudgetVarianceItem[];
+  summary: {
+    total_budgeted: number;
+    total_spent: number;
+    overall_progress: number;
+    avg_variance_percentage: number;
+    categories_over: number;
+    categories_warning: number;
+    categories_under: number;
+  };
+  generated_at: string;
+}
+
+export interface SpendingPatternsResponse {
+  period: { start_date: string; end_date: string; days: number };
+  top_categories: Array<{
+    category_id: number;
+    category_name: string;
+    total_spent: number;
+    share_percentage: number;
+  }>;
+  spending_spikes: Array<{
+    category_id: number;
+    category_name: string;
+    last7_spent: number;
+    prior7_spent: number;
+    spike_ratio: number;
+  }>;
+  generated_at: string;
+}
+
+export interface ForecastItem {
+  category_id: number;
+  category_name: string;
+  budget_limit: number;
+  spent_to_date: number;
+  daily_pace: number;
+  forecasted_spend: number;
+  projected_over_amount: number;
+  status: 'projected_over' | 'tight' | 'on_track';
+}
+
+export interface ForecastsResponse {
+  period: { start_date: string; end_date: string; days_elapsed: number; total_days: number };
+  forecasts: ForecastItem[];
+  generated_at: string;
+}
+
+export interface RecommendationsResponse {
+  recommendations: Array<{ category_id: number; category_name: string; recommendations: string[] }>;
+  generated_at: string;
 }
 
 export interface PaginationInfo {
@@ -130,6 +209,14 @@ export interface InvestmentFormData {
   purchase_price: number;
   current_price?: number;
   purchase_date: string;
+}
+
+export interface IncomeFormData {
+  amount: number;
+  type?: string;
+  frequency: 'weekly' | 'bi-weekly' | 'biweekly' | 'monthly' | 'annually' | 'yearly';
+  source_name: string;
+  is_bonus?: boolean;
 }
 
 // Budget-related types
@@ -278,6 +365,55 @@ export interface BudgetPredictiveAlertsResponse {
   high_priority: number;
   medium_priority: number;
   generated_at: string;
+}
+
+// Intelligent Alerts (Feature 1003)
+export interface AlertItem {
+  id: number;
+  type: 'budget_threshold' | 'anomaly' | 'health' | 'pace' | 'variance' | string;
+  category_id?: number;
+  category_name?: string;
+  severity: 'high' | 'medium' | 'low';
+  message: string;
+  channels: string[];
+  status: 'active' | 'dismissed' | 'snoozed';
+  snooze_until?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertCounts {
+  total: number;
+  high_priority: number;
+  medium_priority: number;
+  low_priority: number;
+}
+
+export interface AlertListResponse {
+  alerts: AlertItem[];
+  counts: AlertCounts;
+  generated_at: string;
+}
+
+export interface NotificationPreferences {
+  in_app_enabled: boolean;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  push_enabled: boolean;
+  quiet_hours_start?: string | null;
+  quiet_hours_end?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AnomalyDetectionResponse {
+  category_id: number;
+  amount: number;
+  average_daily: number;
+  multiplier_threshold: number;
+  is_anomaly: boolean;
+  alert?: AlertItem;
 }
 
 export interface BudgetSummary {

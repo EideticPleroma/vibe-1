@@ -11,7 +11,11 @@ import {
   DollarSign,
   PiggyBank,
   Target,
+<<<<<<< HEAD
   Calculator
+=======
+  Bell
+>>>>>>> origin/main
 } from 'lucide-react';
 
 const Navigation: React.FC = () => {
@@ -26,6 +30,7 @@ const Navigation: React.FC = () => {
     { name: 'Categories', href: '/categories', icon: Tag },
     { name: 'Investments', href: '/investments', icon: TrendingUp },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Alerts', href: '/alerts', icon: Bell },
   ];
 
   const isActive = (href: string) => location.pathname === href;
