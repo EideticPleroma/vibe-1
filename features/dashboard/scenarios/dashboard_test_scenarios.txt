@@ -1,0 +1,21 @@
+# Dashboard and Financial Overview Test Scenarios
+
+Based on the comprehensive test scenarios from test_scenarios.txt, these scenarios specifically test the Dashboard functionality.
+
+## 4. Dashboard Summary
+Provides financial overviews.
+
+- **Scenario 1: Get dashboard data with date range (Positive)**
+  - Description: Fetch summary for specific period.
+  - Steps: GET `/api/dashboard?start_date=2024-01-01&end_date=2024-01-31`.
+  - Expected Outcome: Response code 200, correct totals (income, expenses, net_income, investment_value, etc.).
+
+- **Scenario 2: Get dashboard with invalid date (Negative)**
+  - Description: Validate date format.
+  - Steps: GET `/api/dashboard?start_date=invalid`.
+  - Expected Outcome: Response code 400, error like "Invalid start_date format".
+
+- **Scenario 3: Dashboard with no data (Edge)**
+  - Description: Handle empty database.
+  - Steps: Clear transactions/investments, GET `/api/dashboard`.
+  - Expected Outcome: Response code 200, all totals zero, empty breakdowns.

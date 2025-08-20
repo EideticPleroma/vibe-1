@@ -1,0 +1,31 @@
+# Investments Management Test Scenarios
+
+Based on the comprehensive test scenarios from test_scenarios.txt, these scenarios specifically test the Investments Management functionality.
+
+## 3. Investments Management
+Investments track holdings with calculations for value and gain/loss.
+
+- **Scenario 1: Create new investment (Positive)**
+  - Description: Add a stock holding.
+  - Steps: POST to `/api/investments` with JSON body `{ "asset_name": "GOOG", "asset_type": "stock", "quantity": 5.0, "purchase_price": 100.0, "current_price": 105.0, "purchase_date": "2024-01-01" }`.
+  - Expected Outcome: Response code 201, calculations (e.g., total_gain_loss) correct in response.
+
+- **Scenario 2: Update investment price (Positive)**
+  - Description: Verify gain/loss recalculation.
+  - Steps: Create investment, then PUT `/api/investments/<id>` with `{ "current_price": 120.0 }`.
+  - Expected Outcome: Response code 200, updated gain/loss percentage reflected.
+
+- **Scenario 3: Create with invalid quantity (Negative)**
+  - Description: Validate positive numbers.
+  - Steps: POST with "quantity": -5.0.
+  - Expected Outcome: Response code 400, error like "Quantity must be positive".
+
+- **Scenario 4: Delete investment (Positive)**
+  - Description: Remove a holding.
+  - Steps: Create investment, then DELETE `/api/investments/<id>`.
+  - Expected Outcome: Response code 200, GET `/api/investments` no longer lists it.
+
+- **Scenario 5: Get investments with zero holdings (Edge)**
+  - Description: Handle empty portfolio.
+  - Steps: Delete all investments, then GET `/api/investments`.
+  - Expected Outcome: Response code 200, empty array returned.

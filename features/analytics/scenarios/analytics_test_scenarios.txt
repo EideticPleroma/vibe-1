@@ -1,0 +1,21 @@
+# Analytics and Reporting Test Scenarios
+
+Based on the comprehensive test scenarios from test_scenarios.txt, these scenarios specifically test the Analytics functionality.
+
+## 5. Analytics
+Includes spending trends and investment performance.
+
+- **Scenario 1: Get spending trends (Positive)**
+  - Description: Retrieve monthly expenses.
+  - Steps: GET `/api/analytics/spending-trends?months=6`.
+  - Expected Outcome: Response code 200, trends array with monthly totals.
+
+- **Scenario 2: Get investment performance (Positive)**
+  - Description: Fetch sorted performance data.
+  - Steps: GET `/api/analytics/investment-performance`.
+  - Expected Outcome: Response code 200, performance_data sorted by gain_loss_percentage descending.
+
+- **Scenario 3: Spending trends with no expenses (Edge)**
+  - Description: Handle zero spending.
+  - Steps: Clear expense transactions, GET `/api/analytics/spending-trends?months=1`.
+  - Expected Outcome: Response code 200, trends with total: 0.0.

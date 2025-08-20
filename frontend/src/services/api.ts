@@ -13,6 +13,16 @@ import {
   TransactionFormData,
   CategoryFormData,
   InvestmentFormData,
+  BudgetSuggestionsResponse,
+  BudgetProgressResponse,
+  EffectiveBudgetResponse,
+  BudgetFormData,
+  BulkBudgetUpdateData,
+  AdvancedBudgetProgressResponse,
+  BudgetHistoricalTrendsResponse,
+  TransactionBudgetImpactResponse,
+  BudgetPerformanceResponse,
+  BudgetPredictiveAlertsResponse,
   ApiError
 } from '../types';
 
@@ -136,6 +146,74 @@ export const analyticsApi = {
 
   getInvestmentPerformance: async (): Promise<InvestmentPerformance> => {
     const response = await api.get<InvestmentPerformance>('/analytics/investment-performance');
+    return response.data;
+  },
+};
+
+// Budget API
+export const budgetApi = {
+  getSuggestions: async (): Promise<BudgetSuggestionsResponse> => {
+    const response = await api.get<BudgetSuggestionsResponse>('/budget/suggestions');
+    return response.data;
+  },
+
+  getProgress: async (): Promise<BudgetProgressResponse> => {
+    const response = await api.get<BudgetProgressResponse>('/budget/progress');
+    return response.data;
+  },
+
+  calculateEffectiveBudget: async (params?: {
+    total_income?: number;
+  }): Promise<EffectiveBudgetResponse> => {
+    const response = await api.get<EffectiveBudgetResponse>('/budget/calculate-effective', { params });
+    return response.data;
+  },
+
+  updateCategoryBudget: async (categoryId: number, data: BudgetFormData): Promise<Category> => {
+    const response = await api.put<Category>(`/categories/${categoryId}`, data);
+    return response.data;
+  },
+
+  bulkUpdateBudgets: async (data: BulkBudgetUpdateData): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/budget/bulk-update', data);
+    return response.data;
+  },
+
+  copyBudgetTemplate: async (params?: {
+    inflation_adjustment?: number;
+  }): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/budget/copy-template', params);
+    return response.data;
+  },
+
+  // Advanced Budget Tracking APIs (Feature 1002)
+  getAdvancedProgress: async (params?: {
+    start_date?: string;
+    end_date?: string;
+  }): Promise<AdvancedBudgetProgressResponse> => {
+    const response = await api.get<AdvancedBudgetProgressResponse>('/budget/progress/advanced', { params });
+    return response.data;
+  },
+
+  getHistoricalTrends: async (months: number = 6): Promise<BudgetHistoricalTrendsResponse> => {
+    const response = await api.get<BudgetHistoricalTrendsResponse>('/budget/trends/historical', {
+      params: { months }
+    });
+    return response.data;
+  },
+
+  getTransactionImpact: async (transactionId: number): Promise<TransactionBudgetImpactResponse> => {
+    const response = await api.get<TransactionBudgetImpactResponse>(`/budget/transaction-impact/${transactionId}`);
+    return response.data;
+  },
+
+  getPerformanceScore: async (): Promise<BudgetPerformanceResponse> => {
+    const response = await api.get<BudgetPerformanceResponse>('/budget/performance-score');
+    return response.data;
+  },
+
+  getPredictiveAlerts: async (): Promise<BudgetPredictiveAlertsResponse> => {
+    const response = await api.get<BudgetPredictiveAlertsResponse>('/budget/predictive-alerts');
     return response.data;
   },
 };

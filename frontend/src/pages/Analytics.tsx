@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
-import { analyticsApi, formatCurrency, formatPercentage } from '../services/api.ts';
+import { analyticsApi, formatCurrency, formatPercentage } from '../services/api';
 import { SpendingTrends, InvestmentPerformance } from '../types';
 
 const Analytics: React.FC = () => {

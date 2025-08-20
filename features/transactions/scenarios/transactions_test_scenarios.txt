@@ -1,0 +1,36 @@
+# Transactions Management Test Scenarios
+
+Based on the comprehensive test scenarios from test_scenarios.txt, these scenarios specifically test the Transactions Management functionality.
+
+## 2. Transactions Management
+Transactions involve income/expense entries with filtering and pagination.
+
+- **Scenario 1: Create a new transaction (Positive)**
+  - Description: Add a valid transaction.
+  - Steps: POST to `/api/transactions` with JSON body `{ "amount": 75.00, "category_id": 1, "type": "expense", "date": "2023-08-15", "description": "Dinner" }`.
+  - Expected Outcome: Response code 201, amount stored as negative for expenses. GET `/api/transactions` shows it.
+
+- **Scenario 2: Create transaction with invalid category (Negative)**
+  - Description: Validate category existence.
+  - Steps: POST with non-existent "category_id".
+  - Expected Outcome: Response code 400, error like "Invalid category_id".
+
+- **Scenario 3: Filter transactions by date range (Positive)**
+  - Description: Retrieve filtered results.
+  - Steps: GET `/api/transactions?start_date=2024-01-01&end_date=2024-01-31`.
+  - Expected Outcome: Response code 200, only transactions in range returned, with pagination metadata.
+
+- **Scenario 4: Update transaction type (Edge)**
+  - Description: Change from income to expense and verify amount sign flip.
+  - Steps: Create income transaction, then PUT `/api/transactions/<id>` with `{ "type": "expense" }`.
+  - Expected Outcome: Response code 200, amount becomes negative, type updated.
+
+- **Scenario 5: Delete non-existent transaction (Negative)**
+  - Description: Handle invalid IDs.
+  - Steps: DELETE `/api/transactions/999` (invalid ID).
+  - Expected Outcome: Response code 404, error like "Transaction not found".
+
+- **Scenario 6: Paginate large transaction list (Edge)**
+  - Description: Test pagination with many records.
+  - Steps: Populate 100+ transactions, GET `/api/transactions?page=2&per_page=20`.
+  - Expected Outcome: Response code 200, correct page of results with pagination info (e.g., has_next: true).

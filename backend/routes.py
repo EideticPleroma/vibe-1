@@ -7,7 +7,9 @@ from flask import Blueprint, request, jsonify
 from models import (
     db, Category, Transaction, Investment,
     get_total_income, get_total_expenses, get_net_income,
-    get_total_investment_value, get_total_investment_gain_loss
+    get_total_investment_value, get_total_investment_gain_loss,
+    get_budget_progress_advanced, get_budget_historical_trends,
+    get_transaction_budget_impact, get_budget_performance_score
 )
 from datetime import datetime, date
 from sqlalchemy import desc, func
@@ -51,22 +53,69 @@ def create_category():
         if existing:
             return handle_error("Category with this name already exists")
         
-        if 'budget_limit' in data:
+        # Enhanced budget validation (Feature 1001)
+        if any(key in data for key in ['budget_limit', 'budget_period', 'budget_type', 'budget_priority']):
             if data['type'] != 'expense':
-                return handle_error("Budget limit can only be set for expense categories")
-            try:
-                budget = float(data['budget_limit'])
-                if budget < 0:
-                    return handle_error("Budget limit must be non-negative")
-            except ValueError:
-                return handle_error("Invalid budget limit value")
-        
-        # Create new category
+                return handle_error("Budget settings can only be configured for expense categories")
+
+            # Validate budget_limit
+            if 'budget_limit' in data:
+                try:
+                    budget = float(data['budget_limit'])
+                    if budget < 0:
+                        return handle_error("Budget limit must be non-negative")
+                except ValueError:
+                    return handle_error("Invalid budget limit value")
+
+            # Validate budget_period
+            if 'budget_period' in data:
+                valid_periods = ['daily', 'weekly', 'monthly', 'yearly']
+                if data['budget_period'] not in valid_periods:
+                    return handle_error(f"Budget period must be one of: {', '.join(valid_periods)}")
+
+            # Validate budget_type
+            if 'budget_type' in data:
+                valid_types = ['fixed', 'percentage', 'rolling_average']
+                if data['budget_type'] not in valid_types:
+                    return handle_error(f"Budget type must be one of: {', '.join(valid_types)}")
+
+                # Validate percentage for percentage-based budgets
+                if data['budget_type'] == 'percentage':
+                    if 'budget_percentage' not in data or not data['budget_percentage']:
+                        return handle_error("budget_percentage is required for percentage-based budgets")
+                    try:
+                        percentage = float(data['budget_percentage'])
+                        if not 0 < percentage <= 100:
+                            return handle_error("Budget percentage must be between 0 and 100")
+                    except ValueError:
+                        return handle_error("Invalid budget percentage value")
+
+            # Validate budget_priority
+            if 'budget_priority' in data:
+                valid_priorities = ['critical', 'essential', 'important', 'discretionary']
+                if data['budget_priority'] not in valid_priorities:
+                    return handle_error(f"Budget priority must be one of: {', '.join(valid_priorities)}")
+
+            # Validate rolling months
+            if 'budget_rolling_months' in data:
+                try:
+                    months = int(data['budget_rolling_months'])
+                    if not 1 <= months <= 12:
+                        return handle_error("Budget rolling months must be between 1 and 12")
+                except ValueError:
+                    return handle_error("Invalid budget rolling months value")
+
+        # Create new category with enhanced budget fields
         category = Category(
             name=data['name'],
             type=data['type'],
             color=data.get('color', '#007bff'),
-            budget_limit=float(data.get('budget_limit', 0.0)) if data.get('budget_limit') else None
+            budget_limit=float(data.get('budget_limit', 0.0)) if data.get('budget_limit') else None,
+            budget_period=data.get('budget_period', 'monthly'),
+            budget_type=data.get('budget_type', 'fixed'),
+            budget_priority=data.get('budget_priority', 'essential'),
+            budget_percentage=float(data.get('budget_percentage', 0.0)) if data.get('budget_percentage') else None,
+            budget_rolling_months=data.get('budget_rolling_months', 3)
         )
         
         db.session.add(category)
@@ -98,20 +147,67 @@ def update_category(category_id):
             if data['type'] not in ['income', 'expense']:
                 return handle_error("Type must be 'income' or 'expense'")
             category.type = data['type']
+
+        # Enhanced budget field updates (Feature 1001)
+        if any(key in data for key in ['budget_limit', 'budget_period', 'budget_type', 'budget_priority']):
+            if category.type != 'expense':
+                return handle_error("Budget settings can only be configured for expense categories")
+
+            # Validate budget_limit
+            if 'budget_limit' in data:
+                try:
+                    budget = float(data['budget_limit'])
+                    if budget < 0:
+                        return handle_error("Budget limit must be non-negative")
+                    category.budget_limit = budget
+                except ValueError:
+                    return handle_error("Invalid budget limit value")
+
+            # Validate and update budget_period
+            if 'budget_period' in data:
+                valid_periods = ['daily', 'weekly', 'monthly', 'yearly']
+                if data['budget_period'] not in valid_periods:
+                    return handle_error(f"Budget period must be one of: {', '.join(valid_periods)}")
+                category.budget_period = data['budget_period']
+
+            # Validate and update budget_type
+            if 'budget_type' in data:
+                valid_types = ['fixed', 'percentage', 'rolling_average']
+                if data['budget_type'] not in valid_types:
+                    return handle_error(f"Budget type must be one of: {', '.join(valid_types)}")
+                category.budget_type = data['budget_type']
+
+                # Validate percentage for percentage-based budgets
+                if data['budget_type'] == 'percentage':
+                    if 'budget_percentage' not in data or not data['budget_percentage']:
+                        return handle_error("budget_percentage is required for percentage-based budgets")
+                    try:
+                        percentage = float(data['budget_percentage'])
+                        if not 0 < percentage <= 100:
+                            return handle_error("Budget percentage must be between 0 and 100")
+                        category.budget_percentage = percentage
+                    except ValueError:
+                        return handle_error("Invalid budget percentage value")
+
+            # Validate and update budget_priority
+            if 'budget_priority' in data:
+                valid_priorities = ['critical', 'essential', 'important', 'discretionary']
+                if data['budget_priority'] not in valid_priorities:
+                    return handle_error(f"Budget priority must be one of: {', '.join(valid_priorities)}")
+                category.budget_priority = data['budget_priority']
+
+            # Validate and update rolling months
+            if 'budget_rolling_months' in data:
+                try:
+                    months = int(data['budget_rolling_months'])
+                    if not 1 <= months <= 12:
+                        return handle_error("Budget rolling months must be between 1 and 12")
+                    category.budget_rolling_months = months
+                except ValueError:
+                    return handle_error("Invalid budget rolling months value")
         
         if 'color' in data:
             category.color = data['color']
-        
-        if 'budget_limit' in data:
-            if category.type != 'expense':
-                return handle_error("Budget limit can only be set for expense categories")
-            try:
-                budget = float(data['budget_limit'])
-                if budget < 0:
-                    return handle_error("Budget limit must be non-negative")
-                category.budget_limit = budget
-            except ValueError:
-                return handle_error("Invalid budget limit value")
         
         db.session.commit()
         return jsonify(category.to_dict())
@@ -629,3 +725,484 @@ def get_investment_performance():
         
     except Exception as e:
         return handle_error(f"Error fetching investment performance: {str(e)}", 500)
+
+# ============================================================================
+# ENHANCED BUDGET ENDPOINTS (Feature 1001)
+# ============================================================================
+
+@api.route('/budget/suggestions', methods=['GET'])
+def get_budget_suggestions():
+    """Get automated budget suggestions based on historical spending (Feature 1001)"""
+    try:
+        from dateutil.relativedelta import relativedelta
+
+        # Get all expense categories without budgets
+        categories = Category.query.filter_by(type='expense').filter(
+            (Category.budget_limit.is_(None)) | (Category.budget_limit == 0)
+        ).all()
+
+        suggestions = []
+        for category in categories:
+            # Calculate average spending for the last 3 months
+            three_months_ago = date.today() - relativedelta(months=3)
+            avg_spending = db.session.query(func.avg(Transaction.amount)).filter(
+                Transaction.category_id == category.id,
+                Transaction.date >= three_months_ago,
+                Transaction.type == 'expense'
+            ).scalar()
+
+            if avg_spending and abs(float(avg_spending)) > 0:
+                # Suggest 80th percentile to allow some flexibility
+                suggestion_amount = abs(float(avg_spending)) * 1.25  # Add 25% buffer
+                suggestions.append({
+                    'category_id': category.id,
+                    'category_name': category.name,
+                    'suggested_budget': round(suggestion_amount, 2),
+                    'historical_average': abs(float(avg_spending)),
+                    'reasoning': f'Based on 3-month average spending of ${abs(float(avg_spending)):.2f}'
+                })
+
+        return jsonify({
+            'suggestions': suggestions,
+            'total_suggestions': len(suggestions)
+        })
+
+    except Exception as e:
+        return handle_error(f"Error generating budget suggestions: {str(e)}", 500)
+
+@api.route('/budget/calculate-effective', methods=['GET', 'POST'])
+def calculate_effective_budget():
+    """Calculate effective budget amounts for all categories (Feature 1001)
+
+    - GET: returns { calculations: [...], total_income }
+    - POST: returns { effective_budgets: [...], total_categories, total_budget }
+    """
+    try:
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or {}
+            total_income = float(data.get('total_income', 0.0) or 0.0)
+
+            categories = Category.query.filter_by(type='expense').all()
+            items = []
+            total_budget = 0.0
+
+            for category in categories:
+                effective_amount = category.calculate_effective_budget(total_income)
+                total_budget += float(category.budget_limit or 0.0)
+                items.append({
+                    'category_id': category.id,
+                    'category_name': category.name,
+                    'effective_amount': effective_amount,
+                    'budget_type': category.budget_type,
+                    'budget_period': category.budget_period
+                })
+
+            return jsonify({
+                'effective_budgets': items,
+                'total_categories': len(categories),
+                'total_budget': total_budget,
+                'generated_at': datetime.now().isoformat()
+            })
+
+        # GET branch (default)
+        total_income = float(request.args.get('total_income', 0.0) or 0.0)
+
+        categories = Category.query.filter_by(type='expense').all()
+        effective_budgets = []
+
+        for category in categories:
+            effective_budget = category.calculate_effective_budget(total_income)
+            effective_budgets.append({
+                'category_id': category.id,
+                'category_name': category.name,
+                'effective_budget': effective_budget,
+                'calculation_method': f"{category.budget_type} budget for {category.budget_period} period",
+                'factors': {
+                    'total_income': total_income,
+                    'percentage_used': float(category.budget_percentage) if category.budget_percentage else None
+                }
+            })
+
+        return jsonify({
+            'calculations': effective_budgets,
+            'total_income': total_income,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error calculating effective budgets: {str(e)}", 500)
+
+@api.route('/budget/copy-template', methods=['POST'])
+def copy_budget_template():
+    """Copy budget settings from a previous period with inflation adjustment (Feature 1001)"""
+    try:
+        data = request.get_json()
+        source_period = data.get('source_period', 'last_month')
+        inflation_rate = data.get('inflation_rate', 0.0)  # Percentage
+
+        # Get all expense categories with budgets
+        categories = Category.query.filter_by(type='expense').filter(
+            Category.budget_limit.isnot(None)
+        ).all()
+
+        updated_categories = []
+        for category in categories:
+            if category.budget_limit:
+                # Apply inflation adjustment
+                new_budget = float(category.budget_limit) * (1 + inflation_rate / 100.0)
+                category.budget_limit = new_budget
+                updated_categories.append({
+                    'category_id': category.id,
+                    'category_name': category.name,
+                    'original_budget': float(category.budget_limit) / (1 + inflation_rate / 100.0),
+                    'new_budget': new_budget,
+                    'inflation_adjustment': inflation_rate
+                })
+
+        db.session.commit()
+
+        return jsonify({
+            'message': f'Budget template copied from {source_period} with {inflation_rate}% inflation adjustment',
+            'updated_categories': updated_categories,
+            'total_updated': len(updated_categories)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error copying budget template: {str(e)}", 500)
+
+@api.route('/budget/progress', methods=['GET'])
+def get_budget_progress():
+    """Get budget progress for all expense categories (Feature 1001)"""
+    try:
+        from dateutil.relativedelta import relativedelta
+        from datetime import date
+
+        # Get all expense categories
+        expense_categories = Category.query.filter_by(type='expense').all()
+
+        progress_data = []
+        summary = {
+            'total_budgeted': 0.0,
+            'total_spent': 0.0,
+            'total_remaining': 0.0,
+            'overall_progress': 0.0,
+            'categories_count': len(expense_categories),
+            'categories_over_budget': 0,
+            'categories_warning': 0,
+            'categories_under_budget': 0
+        }
+
+        for category in expense_categories:
+            if not category.budget_limit or category.budget_limit <= 0:
+                continue
+
+            # Calculate spending for current month
+            current_date = date.today()
+            start_of_month = date(current_date.year, current_date.month, 1)
+
+            spent_query = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == category.id,
+                Transaction.type == 'expense',
+                Transaction.date >= start_of_month
+            )
+            spent = abs(float(spent_query.scalar() or 0))
+
+            budget_limit = float(category.budget_limit)
+            remaining = budget_limit - spent
+            percentage = (spent / budget_limit) * 100
+
+            # Determine status
+            if percentage > 100:
+                status = 'over'
+                summary['categories_over_budget'] += 1
+            elif percentage > 80:
+                status = 'warning'
+                summary['categories_warning'] += 1
+            else:
+                status = 'under'
+                summary['categories_under_budget'] += 1
+
+            # Calculate days remaining in month
+            if current_date.month == 12:
+                next_month = date(current_date.year + 1, 1, 1)
+            else:
+                next_month = date(current_date.year, current_date.month + 1, 1)
+
+            days_remaining = (next_month - current_date).days
+
+            # Calculate daily pace
+            daily_pace = spent / max(1, current_date.day)
+
+            # Calculate projected overspend if applicable
+            projected_overspend = 0
+            if daily_pace > 0:
+                projected_daily_needed = budget_limit / 30  # Assume 30 days in month
+                if daily_pace > projected_daily_needed:
+                    projected_overspend = (daily_pace - projected_daily_needed) * (30 - current_date.day)
+
+            progress_data.append({
+                'category_id': category.id,
+                'category_name': category.name,
+                'budget_limit': budget_limit,
+                'spent_amount': spent,
+                'remaining_amount': remaining,
+                'spent_percentage': percentage,
+                'status': status,
+                'days_remaining': days_remaining,
+                'daily_pace': daily_pace,
+                'projected_overspend': projected_overspend
+            })
+
+            # Update summary totals
+            summary['total_budgeted'] += budget_limit
+            summary['total_spent'] += spent
+            summary['total_remaining'] += remaining
+
+        # Calculate overall progress
+        if summary['total_budgeted'] > 0:
+            summary['overall_progress'] = (summary['total_spent'] / summary['total_budgeted']) * 100
+
+        return jsonify({
+            'progress': progress_data,
+            'summary': summary,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error fetching budget progress: {str(e)}", 500)
+
+# ============================================================================
+# ADVANCED BUDGET TRACKING ENDPOINTS (Feature 1002)
+# ============================================================================
+
+@api.route('/budget/progress/advanced', methods=['GET'])
+def get_budget_progress_advanced_endpoint():
+    """Get advanced budget progress with predictions and analytics (Feature 1002)"""
+    try:
+        # Get date range parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if start_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            except ValueError:
+                return handle_error("Invalid start_date format. Use YYYY-MM-DD")
+
+        if end_date:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            except ValueError:
+                return handle_error("Invalid end_date format. Use YYYY-MM-DD")
+
+        progress_data = get_budget_progress_advanced(start_date, end_date)
+
+        # Calculate summary
+        total_budgeted = sum(item['budget_limit'] for item in progress_data)
+        total_spent = sum(item['spent_amount'] for item in progress_data)
+        total_remaining = sum(item['remaining_amount'] for item in progress_data)
+
+        categories_over_budget = sum(1 for item in progress_data if item['status'] == 'over')
+        categories_warning = sum(1 for item in progress_data if item['status'] == 'warning')
+        categories_under_budget = sum(1 for item in progress_data if item['status'] == 'under')
+
+        average_health_score = sum(item['health_score'] for item in progress_data) / len(progress_data) if progress_data else 100
+
+        summary = {
+            'total_budgeted': total_budgeted,
+            'total_spent': total_spent,
+            'total_remaining': total_remaining,
+            'overall_progress': (total_spent / total_budgeted) * 100 if total_budgeted > 0 else 0,
+            'categories_count': len(progress_data),
+            'categories_over_budget': categories_over_budget,
+            'categories_warning': categories_warning,
+            'categories_under_budget': categories_under_budget,
+            'average_health_score': average_health_score,
+            'performance_score': get_budget_performance_score()
+        }
+
+        # Generate alerts based on advanced analytics
+        alerts = []
+        for item in progress_data:
+            if item['pace_analysis']['predicted_overspend'] > 0:
+                alerts.append({
+                    'type': 'warning',
+                    'category': item['category_name'],
+                    'message': f"Predicted overspend of ${item['pace_analysis']['predicted_overspend']:.2f} if current pace continues",
+                    'severity': 'high' if item['pace_analysis']['pace_ratio'] > 2 else 'medium'
+                })
+
+            if item['health_score'] < 60:
+                alerts.append({
+                    'type': 'health',
+                    'category': item['category_name'],
+                    'message': f"Budget health score is {item['health_score']:.1f}/100 - consider adjustments",
+                    'severity': 'high' if item['health_score'] < 40 else 'medium'
+                })
+
+        return jsonify({
+            'progress': progress_data,
+            'summary': summary,
+            'alerts': alerts,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error fetching advanced budget progress: {str(e)}", 500)
+
+@api.route('/budget/trends/historical', methods=['GET'])
+def get_budget_historical_trends_endpoint():
+    """Get historical budget performance trends (Feature 1002)"""
+    try:
+        months = request.args.get('months', 6, type=int)
+
+        if months < 1 or months > 24:
+            return handle_error("Months must be between 1 and 24")
+
+        trends = get_budget_historical_trends(months)
+
+        return jsonify({
+            'trends': trends,
+            'period_months': months,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error fetching budget trends: {str(e)}", 500)
+
+@api.route('/budget/transaction-impact/<int:transaction_id>', methods=['GET'])
+def get_transaction_budget_impact_endpoint(transaction_id):
+    """Get budget impact analysis for a specific transaction (Feature 1002)"""
+    try:
+        impact_analysis = get_transaction_budget_impact(transaction_id)
+
+        if impact_analysis is None:
+            return handle_error("Transaction not found or not an expense", 404)
+
+        return jsonify({
+            'impact_analysis': impact_analysis,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error analyzing transaction impact: {str(e)}", 500)
+
+@api.route('/budget/performance-score', methods=['GET'])
+def get_budget_performance_score_endpoint():
+    """Get overall budget performance score (Feature 1002)"""
+    try:
+        score = get_budget_performance_score()
+
+        # Get additional performance metrics
+        categories = Category.query.filter_by(type='expense').filter(
+            Category.budget_limit.isnot(None)
+        ).all()
+
+        performance_metrics = {
+            'overall_score': score,
+            'categories_tracked': len(categories),
+            'score_interpretation': _interpret_performance_score(score)
+        }
+
+        return jsonify({
+            'performance': performance_metrics,
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error calculating performance score: {str(e)}", 500)
+
+@api.route('/budget/predictive-alerts', methods=['GET'])
+def get_budget_predictive_alerts():
+    """Get predictive spending alerts (Feature 1002)"""
+    try:
+        progress_data = get_budget_progress_advanced()
+
+        alerts = []
+
+        for item in progress_data:
+            # Daily pace alerts
+            if item['pace_analysis']['pace_ratio'] > 1.5:
+                days_to_overspend = None
+                if item['pace_analysis']['pace_ratio'] > 1:
+                    remaining_budget = item['remaining_amount']
+                    daily_excess = item['pace_analysis']['daily_pace'] - item['pace_analysis']['expected_daily']
+                    if daily_excess > 0:
+                        days_to_overspend = remaining_budget / daily_excess
+
+                alerts.append({
+                    'type': 'pace',
+                    'category_id': item['category_id'],
+                    'category_name': item['category_name'],
+                    'severity': 'high' if item['pace_analysis']['pace_ratio'] > 2 else 'medium',
+                    'message': f"Spending {item['pace_analysis']['pace_ratio']:.1f}x faster than planned",
+                    'current_pace': item['pace_analysis']['daily_pace'],
+                    'expected_pace': item['pace_analysis']['expected_daily'],
+                    'days_to_overspend': days_to_overspend,
+                    'predicted_overspend': item['pace_analysis']['predicted_overspend']
+                })
+
+            # Variance alerts
+            if abs(item['variance_analysis']['variance_percentage']) > 20:
+                alerts.append({
+                    'type': 'variance',
+                    'category_id': item['category_id'],
+                    'category_name': item['category_name'],
+                    'severity': 'medium',
+                    'message': f"{'Over' if item['variance_analysis']['variance_percentage'] > 0 else 'Under'} spending by {abs(item['variance_analysis']['variance_percentage']):.1f}% vs expected",
+                    'expected_spent': item['variance_analysis']['expected_spent'],
+                    'actual_spent': item['spent_amount'],
+                    'variance_amount': item['variance_analysis']['variance_amount']
+                })
+
+            # Health score alerts
+            if item['health_score'] < 70:
+                alerts.append({
+                    'type': 'health',
+                    'category_id': item['category_id'],
+                    'category_name': item['category_name'],
+                    'severity': 'high' if item['health_score'] < 50 else 'medium',
+                    'message': f"Budget health score: {item['health_score']:.1f}/100",
+                    'health_score': item['health_score'],
+                    'recommendation': _get_health_recommendation(item['health_score'])
+                })
+
+        # Sort alerts by severity
+        severity_order = {'high': 0, 'medium': 1, 'low': 2}
+        alerts.sort(key=lambda x: severity_order.get(x['severity'], 2))
+
+        return jsonify({
+            'alerts': alerts,
+            'total_alerts': len(alerts),
+            'high_priority': len([a for a in alerts if a['severity'] == 'high']),
+            'medium_priority': len([a for a in alerts if a['severity'] == 'medium']),
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return handle_error(f"Error generating predictive alerts: {str(e)}", 500)
+
+def _interpret_performance_score(score):
+    """Interpret the performance score with human-readable description"""
+    if score >= 90:
+        return "Excellent - All budgets are well managed"
+    elif score >= 80:
+        return "Good - Most budgets are on track"
+    elif score >= 70:
+        return "Fair - Some budget adjustments recommended"
+    elif score >= 60:
+        return "Needs Attention - Multiple budgets require monitoring"
+    else:
+        return "Critical - Immediate budget review needed"
+
+def _get_health_recommendation(health_score):
+    """Get health-based recommendations"""
+    if health_score >= 80:
+        return "Keep up the great work!"
+    elif health_score >= 60:
+        return "Monitor spending closely and consider minor adjustments"
+    elif health_score >= 40:
+        return "Review spending patterns and adjust budget limits"
+    else:
+        return "Significant budget adjustments needed to get back on track"

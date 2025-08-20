@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
-import { categoriesApi } from '../services/api.ts';
+import { categoriesApi } from '../services/api';
 import { Category, CategoryFormData } from '../types';
 
 const Categories: React.FC = () => {

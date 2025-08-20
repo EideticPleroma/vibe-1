@@ -1,0 +1,396 @@
+# Budgeting System Test Scenarios
+
+This file contains comprehensive test scenarios for all budgeting features, organized by feature number and story.
+
+## Feature 0001: Monthly Budget Planning
+
+### Story 0001-0001: Set Monthly Budget
+- **Positive Scenario**: Create budget for expense category
+  - Steps: POST /api/categories with budget_limit
+  - Expected: 201, budget saved
+
+- **Negative Scenario**: Set budget for income category
+  - Steps: POST income category with budget_limit
+  - Expected: Budget ignored or error
+
+- **Edge Scenario**: Set budget to zero
+  - Steps: PUT with budget_limit=0
+  - Expected: 200, budget set to 0
+
+### Story 0001-0002: Update Budget Limit
+- **Positive Scenario**: Update existing budget
+  - Steps: PUT /api/categories/<id> with new budget_limit
+  - Expected: 200, budget updated
+
+- **Negative Scenario**: Update with invalid amount
+  - Steps: PUT with negative budget_limit
+  - Expected: 400, validation error
+
+### Story 0001-0003: View Budget Limits
+- **Positive Scenario**: List categories with budgets
+  - Steps: GET /api/categories
+  - Expected: 200, budget_limit included in response
+
+## Feature 0002: Budget Progress Tracking
+
+### Story 0002-0001: View Spending Progress
+- **Positive Scenario**: Calculate progress percentage
+  - Steps: Add transactions, GET dashboard
+  - Expected: Progress percentage calculated correctly
+
+- **Edge Scenario**: No transactions
+  - Steps: GET dashboard with empty category
+  - Expected: Progress shows 0%
+
+### Story 0002-0002: Real-Time Updates
+- **Positive Scenario**: Live progress updates
+  - Steps: Add transaction, check immediate update
+  - Expected: Dashboard updates without refresh
+
+## Feature 0003: Overspending Alerts
+
+### Story 0003-0001: Dashboard Alerts
+- **Positive Scenario**: Over budget alert
+  - Steps: Exceed 100% of budget
+  - Expected: Alert appears in dashboard
+
+- **Negative Scenario**: Under budget
+  - Steps: Stay under budget
+  - Expected: No alerts shown
+
+### Story 0003-0002: Custom Thresholds
+- **Positive Scenario**: Custom warning threshold
+  - Steps: Set 80% threshold, reach 85%
+  - Expected: Warning alert triggered
+
+- **Edge Scenario**: Threshold at 100%
+  - Steps: Set threshold to 100%, exceed budget
+  - Expected: Alert at exactly 100%
+
+## Enhanced Features (1001-1007)
+
+### Feature 1001: Enhanced Budget Planning
+- **Flexible Periods**: Daily, weekly, monthly, yearly budgets
+- **Budget Types**: Fixed, percentage, rolling average
+- **Automated Suggestions**: AI-powered budget recommendations
+- **Priority-Based**: Essential vs discretionary spending
+- **Template Copy**: Previous period copying with adjustments
+
+### Feature 1002: Advanced Budget Tracking
+- **Multi-Period Tracking**: Simultaneous period display
+- **Predictive Alerts**: Pace-based spending predictions
+- **Historical Trends**: Performance analysis and comparisons
+- **Transaction Analysis**: Detailed impact tracking
+
+### Feature 1003: Intelligent Alerts
+- **Multi-Channel**: Email, in-app, push notifications
+- **Smart Detection**: Pattern-based anomaly alerts
+- **Frequency Control**: Snooze and alert management
+- **Dashboard Management**: Centralized alert interface
+
+### Feature 1004: Budget Analytics
+- **Variance Analysis**: Budget vs actual comparisons
+- **Pattern Analysis**: Spending pattern identification
+- **Forecasting**: Predictive budget performance
+- **Optimization**: AI-powered recommendations
+
+### Feature 1005: Multi-Methodology Support
+- **Zero-Based**: Every dollar allocated
+- **50/30/20 Rule**: Fixed percentage allocation
+- **Envelope System**: Fixed category amounts
+- **Methodology Switching**: Seamless transitions
+- **Educational Content**: Built-in guidance
+
+### Feature 1006: Budget Goals
+- **Goal Creation**: Target amounts and deadlines
+- **Progress Tracking**: Visual milestone indicators
+- **Budget Integration**: Category allocation to goals
+- **Notifications**: Progress and deadline alerts
+- **Account Linking**: Savings account integration
+
+### Feature 1007: Automated Recommendations
+- **Budget Suggestions**: Historical analysis-based
+- **Reallocation**: Surplus to deficit transfers
+- **Seasonal Adjustments**: Pattern-based modifications
+- **Savings Opportunities**: Cost reduction identification
+- **Personalized Optimization**: User-specific recommendations
+
+## New Features (2001-2004)
+
+### Feature 2001: Income Management System
+- **Multiple Income Sources**: Gross, net, and bonus income tracking
+- **Income Frequency**: Weekly, bi-weekly, monthly, annual support
+- **Budget Integration**: Real-time budget calculation updates
+- **Source Categorization**: Salary, freelance, investments, etc.
+- **Historical Tracking**: Income amount change history
+
+### Feature 2002: Budget Model Details and Selection
+- **Model Descriptions**: Comprehensive methodology explanations
+- **Comparison Tools**: Side-by-side feature matrices
+- **Recommendation Engine**: AI-powered model suggestions
+- **Selection Workflow**: One-click model adoption
+- **Educational Content**: Built-in methodology guidance
+
+### Feature 2003: Dynamic Budget Configuration Forms
+- **Dynamic Rendering**: Model-specific form field sets
+- **Conditional Logic**: Context-aware field visibility
+- **Real-time Validation**: Model-appropriate business rules
+- **Preview Functionality**: Live budget impact visualization
+- **State Management**: Form persistence during transitions
+
+### Feature 2004: Model-Specific Warnings and Suggestions
+- **Tailored Alerts**: Methodology-aligned warning criteria
+- **Contextual Suggestions**: Principle-based recommendation logic
+- **Educational Integration**: Built-in learning content delivery
+- **Success Metrics**: Model-appropriate goal tracking
+- **Customization Options**: User-specific alert preferences
+
+## Integration Scenarios
+
+### Full Workflow
+- **End-to-End**: Category creation → Budget setup → Transaction tracking → Alert generation → Analytics review
+
+### Multi-User
+- **Data Isolation**: User data separation and security
+- **Performance**: System performance with multiple users
+
+### Large Dataset
+- **Scalability**: Performance with 10,000+ transactions
+- **Data Integrity**: Consistency across large datasets
+
+## Error Handling
+
+### Network Issues
+- **Graceful Degradation**: Handle connectivity problems
+- **Data Synchronization**: Restore after connection issues
+
+### Invalid Data
+- **Input Validation**: Reject invalid budget amounts
+- **Error Messages**: Clear user feedback
+
+### System Recovery
+- **Database Issues**: Recovery from corruption
+- **Backup Restoration**: Data integrity preservation
+
+## Performance Requirements
+
+### Response Times
+- **Dashboard Load**: <3 seconds
+- **Query Response**: <2 seconds
+- **Update Processing**: <1 second
+
+### Scalability
+- **Concurrent Users**: Support 100+ simultaneous users
+- **Data Volume**: Handle 50,000+ transactions
+- **Memory Usage**: Stay within acceptable limits
+
+## Success Criteria
+
+### User Experience
+- **Adoption Rate**: 80% of users set up budgets
+- **Satisfaction**: 90% user satisfaction rating
+- **Engagement**: 85% feature usage rate
+
+### System Performance
+- **Reliability**: 99.9% uptime
+- **Accuracy**: 99.5% calculation accuracy
+- **Data Integrity**: 100% data preservation
+
+### Business Impact
+- **Overspending Reduction**: 50% reduction in incidents
+- **Savings Increase**: 30% improvement in savings rate
+- **Financial Awareness**: 70% improvement in financial literacy
+
+## Detailed Test Scenarios for New Features
+
+### Feature 2001: Income Management System
+
+#### Story 2001-0001: Add Multiple Income Sources
+- **Positive Scenario**: Add gross income source
+  - Steps: POST /api/income with gross amount, type='gross'
+  - Expected: 201, income saved with correct type
+
+- **Positive Scenario**: Add bonus income with frequency
+  - Steps: POST /api/income with bonus amount, frequency='monthly', is_bonus=true
+  - Expected: 201, bonus income tracked separately
+
+- **Negative Scenario**: Add income with negative amount
+  - Steps: POST /api/income with amount=-100
+  - Expected: 400, validation error for negative amount
+
+- **Edge Scenario**: Add income with zero amount
+  - Steps: POST /api/income with amount=0
+  - Expected: 400, validation error for zero amount
+
+#### Story 2001-0002: Edit Income in Budget Config
+- **Positive Scenario**: Update income amount
+  - Steps: PUT /api/income/<id> with new amount
+  - Expected: 200, income updated and budget recalculated
+
+- **Negative Scenario**: Update with invalid frequency
+  - Steps: PUT /api/income/<id> with frequency='invalid'
+  - Expected: 400, validation error for frequency
+
+#### Story 2001-0003: View Income Breakdown
+- **Positive Scenario**: View total income summary
+  - Steps: GET /api/dashboard/income-summary
+  - Expected: 200, returns gross, net, bonus totals and percentages
+
+- **Edge Scenario**: No income sources
+  - Steps: GET /api/dashboard/income-summary with no income
+  - Expected: 200, returns zero totals
+
+#### Story 2001-0004: Categorize Income Sources
+- **Positive Scenario**: Add income with category
+  - Steps: POST /api/income with category='salary'
+  - Expected: 201, income categorized correctly
+
+- **Positive Scenario**: Filter income by category
+  - Steps: GET /api/income?category='freelance'
+  - Expected: 200, returns only freelance income
+
+#### Story 2001-0005: Set Income Frequency
+- **Positive Scenario**: Set bi-weekly frequency
+  - Steps: POST /api/income with frequency='bi-weekly'
+  - Expected: 201, frequency saved and calculations adjusted
+
+- **Edge Scenario**: Annual income projection
+  - Steps: POST /api/income with amount=50000, frequency='annual'
+  - Expected: Monthly projection calculated as ~4167
+
+### Feature 2002: Budget Model Details and Selection
+
+#### Story 2002-0001: View Model Descriptions
+- **Positive Scenario**: View Zero-Based Budgeting details
+  - Steps: GET /api/models/zero-based
+  - Expected: 200, comprehensive description returned
+
+- **Positive Scenario**: View all model summaries
+  - Steps: GET /api/models
+  - Expected: 200, array of all available models
+
+#### Story 2002-0002: Compare Model Pros and Cons
+- **Positive Scenario**: Get pros and cons for 50/30/20
+  - Steps: GET /api/models/50-30-20/comparison
+  - Expected: 200, balanced pros/cons returned
+
+#### Story 2002-0003: Side-by-Side Model Comparison
+- **Positive Scenario**: Compare two models
+  - Steps: GET /api/models/compare?models=zero-based,50-30-20
+  - Expected: 200, feature matrix returned
+
+- **Edge Scenario**: Compare single model
+  - Steps: GET /api/models/compare?models=zero-based
+  - Expected: 400, requires at least two models
+
+#### Story 2002-0004: Select Budgeting Model
+- **Positive Scenario**: Select Zero-Based Budgeting
+  - Steps: POST /api/user/model-selection with model='zero-based'
+  - Expected: 200, model selected and configuration updated
+
+- **Negative Scenario**: Select invalid model
+  - Steps: POST /api/user/model-selection with model='invalid'
+  - Expected: 400, model not found error
+
+#### Story 2002-0005: Get Model Recommendations
+- **Positive Scenario**: Get recommendation for high income
+  - Steps: GET /api/models/recommendations with high income data
+  - Expected: 200, recommends Zero-Based Budgeting with high confidence
+
+- **Positive Scenario**: Get multiple recommendations
+  - Steps: GET /api/models/recommendations?limit=3
+  - Expected: 200, returns top 3 recommended models
+
+### Feature 2003: Dynamic Budget Configuration Forms
+
+#### Story 2003-0001: Dynamic Form Changes
+- **Positive Scenario**: Form changes on model selection
+  - Steps: Change model from Zero-Based to 50/30/20
+  - Expected: Form fields update to show needs/wants/savings allocation
+
+- **Negative Scenario**: Invalid model selection
+  - Steps: Select unsupported model
+  - Expected: Form shows error state
+
+#### Story 2003-0002: Model-Specific Options
+- **Positive Scenario**: Envelope system options
+  - Steps: Select Envelope System model
+  - Expected: Shows envelope allocation fields and limits
+
+- **Positive Scenario**: Priority-Based options
+  - Steps: Select Priority-Based model
+  - Expected: Shows priority level configuration
+
+#### Story 2003-0003: Conditional Form Fields
+- **Positive Scenario**: Advanced options appear
+  - Steps: Toggle advanced settings
+  - Expected: Additional conditional fields appear
+
+- **Edge Scenario**: All conditions met
+  - Steps: Fill all required conditional fields
+  - Expected: Form validation passes
+
+#### Story 2003-0004: Model-Based Validation
+- **Positive Scenario**: Zero-Based validation
+  - Steps: Enter budget that doesn't equal zero
+  - Expected: Validation error for Zero-Based model
+
+- **Positive Scenario**: 50/30/20 validation
+  - Steps: Enter valid 50/30/20 allocation
+  - Expected: Validation passes
+
+#### Story 2003-0005: Budget Preview
+- **Positive Scenario**: Preview budget changes
+  - Steps: Modify budget amounts, click preview
+  - Expected: Shows projected budget impact
+
+- **Edge Scenario**: Preview with invalid data
+  - Steps: Enter invalid amounts, click preview
+  - Expected: Shows validation errors in preview
+
+### Feature 2004: Model-Specific Warnings and Suggestions
+
+#### Story 2004-0001: Model-Specific Warnings
+- **Positive Scenario**: Zero-Based warning
+  - Steps: Leave unallocated funds in Zero-Based budget
+  - Expected: Warning about unallocated money
+
+- **Positive Scenario**: Envelope System warning
+  - Steps: Exceed envelope limit
+  - Expected: Envelope empty warning
+
+#### Story 2004-0002: Aligned Suggestions
+- **Positive Scenario**: 50/30/20 suggestion
+  - Steps: Overspend on wants category
+  - Expected: Suggestion to reallocate from wants to needs
+
+- **Positive Scenario**: Priority-Based suggestion
+  - Steps: Essential expenses not covered
+  - Expected: Prioritize essential spending
+
+#### Story 2004-0003: Alert Explanations
+- **Positive Scenario**: Get alert explanation
+  - Steps: Click on warning icon
+  - Expected: Detailed explanation of why alert triggered
+
+- **Edge Scenario**: No explanation available
+  - Steps: Click on unknown alert
+  - Expected: Generic help message
+
+#### Story 2004-0004: Success Metrics
+- **Positive Scenario**: Zero-Based success tracking
+  - Steps: Complete month with zero variance
+  - Expected: Success metric achieved notification
+
+- **Positive Scenario**: 50/30/20 success tracking
+  - Steps: Maintain proper allocation ratios
+  - Expected: Ratio achievement celebration
+
+#### Story 2004-0005: Educational Tips
+- **Positive Scenario**: Get contextual tip
+  - Steps: Trigger spending alert
+  - Expected: Related educational tip displayed
+
+- **Positive Scenario**: Progressive learning
+  - Steps: Complete beginner tutorial
+  - Expected: Advanced tips unlocked

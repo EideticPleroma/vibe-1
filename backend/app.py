@@ -9,17 +9,23 @@ from models import db
 from routes import api
 import os
 
-def create_app():
+def create_app(config_name=None):
     """Application factory pattern for Flask app"""
     app = Flask(__name__)
-    
+
     # Configuration
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-    # Use absolute path for database to avoid conflicts
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'finance_app.db')
-    # db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
-    db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    if config_name == 'testing':
+        app.config['SECRET_KEY'] = 'test-secret-key'
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+        app.config['TESTING'] = True
+    else:
+        app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+        # Use absolute path for database to avoid conflicts
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'finance_app.db')
+        # db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
+        db_path = db_path.replace('\\', '/')  # Normalize for Windows to ensure persistence
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize extensions
