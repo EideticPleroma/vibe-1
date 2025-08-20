@@ -6,6 +6,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
 import Budget from './pages/Budget';
+import BudgetMethodologyPage from './pages/BudgetMethodology';
 import Transactions from './pages/Transactions';
 import Categories from './pages/Categories';
 import Investments from './pages/Investments';
@@ -34,6 +35,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/budget" element={<Budget />} />
+            <Route path="/budget-methodologies" element={<BudgetMethodologyPage />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/investments" element={<Investments />} />

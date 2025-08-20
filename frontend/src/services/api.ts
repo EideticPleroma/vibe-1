@@ -33,7 +33,18 @@ import {
   AlertItem,
   NotificationPreferences,
   AnomalyDetectionResponse,
-  ApiError
+  ApiError,
+  BudgetMethodology,
+  BudgetMethodologyFormData,
+  MethodologyActivationResponse,
+  MethodologyCalculationRequest,
+  MethodologyCalculationResponse,
+  MethodologyApplicationRequest,
+  MethodologyApplicationResponse,
+  MethodologyValidationResponse,
+  MethodologyComparisonRequest,
+  MethodologyComparisonResponse,
+  MethodologyRecommendationsResponse
 } from '../types';
 
 // Create axios instance with base configuration
@@ -373,6 +384,84 @@ export const handleApiError = (error: any): string => {
 
 export const isApiError = (error: any): error is ApiError => {
   return error && typeof error.error === 'string';
+};
+
+// ============================================================================
+// BUDGET METHODOLOGY API (Feature 1005)
+// ============================================================================
+
+export const budgetMethodologyApi = {
+  // Get all methodologies
+  getAll: async (): Promise<BudgetMethodology[]> => {
+    const response = await api.get('/budget/methodologies');
+    return response.data;
+  },
+
+  // Get active methodology
+  getActive: async (): Promise<BudgetMethodology | null> => {
+    try {
+      const response = await api.get('/budget/methodologies/active');
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  // Create new methodology
+  create: async (data: BudgetMethodologyFormData): Promise<BudgetMethodology> => {
+    const response = await api.post('/budget/methodologies', data);
+    return response.data;
+  },
+
+  // Update methodology
+  update: async (id: number, data: Partial<BudgetMethodologyFormData>): Promise<BudgetMethodology> => {
+    const response = await api.put(`/budget/methodologies/${id}`, data);
+    return response.data;
+  },
+
+  // Delete methodology
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/budget/methodologies/${id}`);
+  },
+
+  // Activate methodology
+  activate: async (id: number): Promise<MethodologyActivationResponse> => {
+    const response = await api.post(`/budget/methodologies/${id}/activate`);
+    return response.data;
+  },
+
+  // Calculate budget using methodology
+  calculate: async (id: number, data?: MethodologyCalculationRequest): Promise<MethodologyCalculationResponse> => {
+    const response = await api.post(`/budget/methodologies/${id}/calculate`, data || {});
+    return response.data;
+  },
+
+  // Apply methodology to categories
+  apply: async (id: number, data: MethodologyApplicationRequest): Promise<MethodologyApplicationResponse> => {
+    const response = await api.post(`/budget/methodologies/${id}/apply`, data);
+    return response.data;
+  },
+
+  // Validate methodology configuration
+  validate: async (id: number): Promise<MethodologyValidationResponse> => {
+    const response = await api.get(`/budget/methodologies/${id}/validate`);
+    return response.data;
+  },
+
+  // Compare multiple methodologies
+  compare: async (data: MethodologyComparisonRequest): Promise<MethodologyComparisonResponse> => {
+    const response = await api.post('/budget/methodologies/compare', data);
+    return response.data;
+  },
+
+  // Get methodology recommendations
+  getRecommendations: async (): Promise<MethodologyRecommendationsResponse> => {
+    const response = await api.get('/budget/methodologies/recommendations');
+    return response.data;
+  }
 };
 
 export default api;

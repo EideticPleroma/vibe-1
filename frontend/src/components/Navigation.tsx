@@ -11,6 +11,7 @@ import {
   DollarSign,
   PiggyBank,
   Target,
+  Calculator,
   Bell
 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ const Navigation: React.FC = () => {
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Budget', href: '/budget', icon: Target },
+    { name: 'Budget Methodologies', href: '/budget-methodologies', icon: Calculator },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Categories', href: '/categories', icon: Tag },
     { name: 'Investments', href: '/investments', icon: TrendingUp },
