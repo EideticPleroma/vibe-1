@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 import { analyticsApi, formatCurrency, formatPercentage } from '../services/api';
-import { SpendingTrends, InvestmentPerformance } from '../types';
+import { SpendingTrends, InvestmentPerformance, BudgetVarianceResponse, SpendingPatternsResponse, ForecastsResponse } from '../types';
 
 const Analytics: React.FC = () => {
   const [spendingTrends, setSpendingTrends] = useState<SpendingTrends | null>(null);
@@ -10,16 +10,25 @@ const Analytics: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonths, setSelectedMonths] = useState(6);
+  const [variance, setVariance] = useState<BudgetVarianceResponse | null>(null);
+  const [patterns, setPatterns] = useState<SpendingPatternsResponse | null>(null);
+  const [forecasts, setForecasts] = useState<ForecastsResponse | null>(null);
 
   const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
-      const [trends, performance] = await Promise.all([
+      const [trends, performance, varianceRes, patternsRes, forecastsRes] = await Promise.all([
         analyticsApi.getSpendingTrends(selectedMonths),
-        analyticsApi.getInvestmentPerformance()
+        analyticsApi.getInvestmentPerformance(),
+        analyticsApi.getBudgetVariance(),
+        analyticsApi.getSpendingPatterns(30),
+        analyticsApi.getForecasts()
       ]);
       setSpendingTrends(trends);
       setInvestmentPerformance(performance);
+      setVariance(varianceRes);
+      setPatterns(patternsRes);
+      setForecasts(forecastsRes);
     } catch (err) {
       setError('Failed to load analytics data');
       console.error('Analytics error:', err);
@@ -339,6 +348,109 @@ const Analytics: React.FC = () => {
                 : ''
               }
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Budget Variance Section (Feature 1004) */}
+      {variance && (
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Budget vs Actual</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spent</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {variance.categories.map((item) => (
+                  <tr key={item.category_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.category_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(item.budget_limit)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(item.spent_amount)}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${item.variance_amount > 0 ? 'text-danger-600' : 'text-success-600'}`}>
+                      {formatCurrency(item.variance_amount)} ({formatPercentage(item.variance_percentage)})
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm capitalize">{item.status.replace('_', ' ')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.recommendation}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Spending Patterns Section (Feature 1004) */}
+      {patterns && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Categories (Last {patterns.period.days} days)</h3>
+            <ul className="divide-y divide-gray-200">
+              {patterns.top_categories.map((c) => (
+                <li key={c.category_id} className="py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">{c.category_name}</span>
+                  <span className="text-sm text-gray-700">{formatCurrency(c.total_spent)} ({c.share_percentage.toFixed(1)}%)</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Spikes</h3>
+            {patterns.spending_spikes.length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {patterns.spending_spikes.map((s) => (
+                  <li key={s.category_id} className="py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{s.category_name}</span>
+                      <span className="text-sm text-danger-600">x{s.spike_ratio.toFixed(1)}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">Last 7 days: {formatCurrency(s.last7_spent)}; Prior 7: {formatCurrency(s.prior7_spent)}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-gray-500">No unusual spikes detected.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Forecasts Section (Feature 1004) */}
+      {forecasts && (
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">End-of-Month Forecasts</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spent To Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Daily Pace</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Forecast</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Projected Over</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {forecasts.forecasts.map((f) => (
+                  <tr key={f.category_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{f.category_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(f.budget_limit)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(f.spent_to_date)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(f.daily_pace)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">{formatCurrency(f.forecasted_spend)}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${f.projected_over_amount > 0 ? 'text-danger-600' : 'text-success-600'}`}>{formatCurrency(f.projected_over_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

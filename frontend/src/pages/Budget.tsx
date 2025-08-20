@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 
 import {
   Category,
+  Income,
   BudgetProgress,
   BudgetSummary,
   BudgetSuggestion,
@@ -32,12 +33,14 @@ import {
 import {
   categoriesApi,
   budgetApi,
+  incomesApi,
   formatCurrency,
   handleApiError,
 } from '../services/api';
 
 const Budget: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
   const [budgetProgress, setBudgetProgress] = useState<BudgetProgress[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
   const [suggestions, setSuggestions] = useState<BudgetSuggestion[]>([]);
@@ -47,6 +50,7 @@ const Budget: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isIncomeDialogOpen, setIsIncomeDialogOpen] = useState(false);
   const [budgetForm, setBudgetForm] = useState<BudgetFormData>({
     category_id: 0,
     budget_limit: 0,
@@ -55,6 +59,13 @@ const Budget: React.FC = () => {
     budget_priority: 'essential',
     budget_percentage: undefined,
     budget_rolling_months: 3,
+  });
+  const [incomeForm, setIncomeForm] = useState<{ id?: number; amount: number; source_name: string; type?: string; frequency: Income['frequency']; is_bonus?: boolean }>({
+    amount: 0,
+    source_name: '',
+    type: '',
+    frequency: 'monthly',
+    is_bonus: false,
   });
 
   useEffect(() => {
@@ -66,11 +77,12 @@ const Budget: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const [categoriesData, progressData, suggestionsData, effectiveData] = await Promise.all([
+      const [categoriesData, progressData, suggestionsData, effectiveData, incomesData] = await Promise.all([
         categoriesApi.getAll(),
         budgetApi.getProgress(),
         budgetApi.getSuggestions(),
         budgetApi.calculateEffectiveBudget(),
+        incomesApi.getAll(),
       ]);
 
       const expenseCategories = categoriesData.filter(cat => cat.type === 'expense');
@@ -79,6 +91,7 @@ const Budget: React.FC = () => {
       setBudgetSummary(progressData.summary);
       setSuggestions(suggestionsData.suggestions);
       setEffectiveBudgets(effectiveData.calculations);
+      setIncomes(incomesData);
     } catch (err) {
       setError(handleApiError(err as any));
     } finally {
@@ -133,6 +146,50 @@ const Budget: React.FC = () => {
       budget_rolling_months: category.budget_rolling_months || 3,
     });
     setIsDialogOpen(true);
+  };
+
+  const openIncomeDialog = (income?: Income) => {
+    if (income) {
+      setIncomeForm({ id: income.id, amount: income.amount, source_name: income.source_name, type: income.type || '', frequency: income.frequency, is_bonus: income.is_bonus });
+    } else {
+      setIncomeForm({ amount: 0, source_name: '', type: '', frequency: 'monthly', is_bonus: false });
+    }
+    setIsIncomeDialogOpen(true);
+  };
+
+  const handleIncomeSubmit = async () => {
+    try {
+      if (incomeForm.id) {
+        await incomesApi.update(incomeForm.id, {
+          amount: incomeForm.amount,
+          source_name: incomeForm.source_name,
+          type: incomeForm.type,
+          frequency: incomeForm.frequency,
+          is_bonus: incomeForm.is_bonus,
+        });
+      } else {
+        await incomesApi.create({
+          amount: incomeForm.amount,
+          source_name: incomeForm.source_name,
+          type: incomeForm.type,
+          frequency: incomeForm.frequency,
+          is_bonus: incomeForm.is_bonus,
+        });
+      }
+      await loadBudgetData();
+      setIsIncomeDialogOpen(false);
+    } catch (err) {
+      setError(handleApiError(err as any));
+    }
+  };
+
+  const handleIncomeDelete = async (id: number) => {
+    try {
+      await incomesApi.delete(id);
+      await loadBudgetData();
+    } catch (err) {
+      setError(handleApiError(err as any));
+    }
   };
 
   const copyBudgetTemplate = async () => {
@@ -298,10 +355,11 @@ const Budget: React.FC = () => {
       {/* Budget Tabs */}
       <div className="card">
         <Tabs defaultValue="progress" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="progress">Budget Progress</TabsTrigger>
             <TabsTrigger value="suggestions">AI Suggestions</TabsTrigger>
             <TabsTrigger value="effective">Effective Budgets</TabsTrigger>
+            <TabsTrigger value="income">Income</TabsTrigger>
             <TabsTrigger value="settings">Budget Settings</TabsTrigger>
           </TabsList>
 
@@ -447,6 +505,42 @@ const Budget: React.FC = () => {
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="income" className="mt-6">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Income Sources</h3>
+                  <p className="text-gray-600">Manage salary, freelance, and bonus income</p>
+                </div>
+                <Button onClick={() => openIncomeDialog()} className="btn-primary">Add Income</Button>
+              </div>
+
+              {incomes.length === 0 ? (
+                <div className="text-center py-8">
+                  <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No income configured yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {incomes.map((inc) => (
+                    <div key={inc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{inc.source_name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {inc.type ? `${inc.type} • ` : ''}{inc.frequency.replace('-', ' ')} • {formatCurrency(inc.amount)}{inc.is_bonus ? ' (Bonus)' : ''}
+                        </p>
+                      </div>
+                      <div className="space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => openIncomeDialog(inc)} className="btn-secondary">Edit</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleIncomeDelete(inc.id)} className="btn-secondary">Delete</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -557,6 +651,61 @@ const Budget: React.FC = () => {
               Cancel
             </Button>
             <Button onClick={handleBudgetSubmit} className="btn-primary">Save Budget</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Income Dialog */}
+      <Dialog open={isIncomeDialogOpen} onOpenChange={setIsIncomeDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{incomeForm.id ? 'Edit Income' : 'Add Income'}</DialogTitle>
+            <DialogDescription>Configure an income source</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="source_name">Source Name</Label>
+              <Input id="source_name" value={incomeForm.source_name} onChange={(e) => setIncomeForm({ ...incomeForm, source_name: e.target.value })} placeholder="e.g., Salary" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Input id="type" value={incomeForm.type || ''} onChange={(e) => setIncomeForm({ ...incomeForm, type: e.target.value })} placeholder="e.g., salary, freelance" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount</Label>
+              <Input id="amount" type="number" value={incomeForm.amount} onChange={(e) => setIncomeForm({ ...incomeForm, amount: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="frequency">Frequency</Label>
+              <Select value={incomeForm.frequency} onValueChange={(v: any) => setIncomeForm({ ...incomeForm, frequency: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="annually">Annually</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="is_bonus">Bonus</Label>
+              <div className="flex items-center space-x-2">
+                <input id="is_bonus" type="checkbox" checked={!!incomeForm.is_bonus} onChange={(e) => setIncomeForm({ ...incomeForm, is_bonus: e.target.checked })} />
+                <span className="text-sm text-gray-700">Mark as bonus income</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsIncomeDialogOpen(false)} className="btn-secondary">Cancel</Button>
+            <Button onClick={handleIncomeSubmit} className="btn-primary">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -5,7 +5,7 @@ Provides RESTful endpoints for categories, transactions, and investments
 
 from flask import Blueprint, request, jsonify
 from models import (
-    db, Category, Transaction, Investment,
+    db, Category, Transaction, Investment, Alert, NotificationPreference, Income,
     get_total_income, get_total_expenses, get_net_income,
     get_total_investment_value, get_total_investment_gain_loss,
     get_budget_progress_advanced, get_budget_historical_trends,
@@ -14,6 +14,7 @@ from models import (
 from datetime import datetime, date
 from sqlalchemy import desc, func
 import json
+from datetime import timedelta
 
 # Create blueprint for API routes
 api = Blueprint('api', __name__, url_prefix='/api')
@@ -236,6 +237,116 @@ def delete_category(category_id):
     except Exception as e:
         db.session.rollback()
         return handle_error(f"Error deleting category: {str(e)}", 500)
+
+# ============================================================================
+# INCOME ROUTES (Feature 2001)
+# ============================================================================
+
+@api.route('/incomes', methods=['GET'])
+def list_incomes():
+    """List all configured income sources"""
+    try:
+        incomes = Income.query.order_by(desc(Income.created_at)).all()
+        return jsonify([i.to_dict() for i in incomes])
+    except Exception as e:
+        return handle_error(f"Error fetching incomes: {str(e)}", 500)
+
+
+@api.route('/incomes', methods=['POST'])
+def create_income():
+    """Create a new income source"""
+    try:
+        data = request.get_json() or {}
+
+        # Validate required fields
+        required = ['amount', 'frequency', 'source_name']
+        for field in required:
+            if field not in data:
+                return handle_error(f"Missing required field: {field}")
+
+        # Validate amount
+        try:
+            amount = float(data['amount'])
+            if amount <= 0:
+                return handle_error('Amount must be positive')
+        except ValueError:
+            return handle_error('Invalid amount value')
+
+        # Validate frequency
+        valid_freq = ['weekly', 'bi-weekly', 'biweekly', 'monthly', 'annually', 'yearly']
+        frequency = str(data.get('frequency', 'monthly')).lower()
+        if frequency not in valid_freq:
+            return handle_error(f"Frequency must be one of: {', '.join(valid_freq)}")
+
+        income = Income(
+            amount=amount,
+            income_type=data.get('type'),
+            frequency=frequency,
+            source_name=data.get('source_name', 'Unknown'),
+            is_bonus=bool(data.get('is_bonus', False))
+        )
+        db.session.add(income)
+        db.session.commit()
+        return jsonify(income.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error creating income: {str(e)}", 500)
+
+
+@api.route('/incomes/<int:income_id>', methods=['PUT'])
+def update_income(income_id):
+    """Update an income source"""
+    try:
+        income = db.session.get(Income, income_id)
+        if not income:
+            return handle_error('Income not found', 404)
+        data = request.get_json() or {}
+
+        if 'amount' in data:
+            try:
+                amount = float(data['amount'])
+                if amount <= 0:
+                    return handle_error('Amount must be positive')
+                income.amount = amount
+            except ValueError:
+                return handle_error('Invalid amount value')
+
+        if 'frequency' in data:
+            valid_freq = ['weekly', 'bi-weekly', 'biweekly', 'monthly', 'annually', 'yearly']
+            freq = str(data['frequency']).lower()
+            if freq not in valid_freq:
+                return handle_error(f"Frequency must be one of: {', '.join(valid_freq)}")
+            income.frequency = freq
+
+        if 'type' in data:
+            income.income_type = data['type']
+
+        if 'source_name' in data:
+            income.source_name = data['source_name']
+
+        if 'is_bonus' in data:
+            income.is_bonus = bool(data['is_bonus'])
+
+        db.session.commit()
+        return jsonify(income.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error updating income: {str(e)}", 500)
+
+
+@api.route('/incomes/<int:income_id>', methods=['DELETE'])
+def delete_income(income_id):
+    """Delete an income source"""
+    try:
+        income = db.session.get(Income, income_id)
+        if not income:
+            return handle_error('Income not found', 404)
+        db.session.delete(income)
+        db.session.commit()
+        return jsonify({'message': 'Income deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error deleting income: {str(e)}", 500)
 
 # ============================================================================
 # TRANSACTION ROUTES
@@ -727,6 +838,341 @@ def get_investment_performance():
         return handle_error(f"Error fetching investment performance: {str(e)}", 500)
 
 # ============================================================================
+# BUDGET ANALYTICS (Feature 1004)
+# ============================================================================
+
+def _compute_budget_variance(start_date_val, end_date_val):
+    categories = Category.query.filter_by(type='expense').filter(Category.budget_limit.isnot(None)).all()
+
+    items = []
+    total_budgeted = 0.0
+    total_spent = 0.0
+
+    for cat in categories:
+        budget_limit = float(cat.budget_limit or 0.0)
+
+        spent = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.category_id == cat.id,
+            Transaction.type == 'expense',
+            Transaction.date >= start_date_val,
+            Transaction.date <= end_date_val
+        ).scalar() or 0.0
+        spent_amount = abs(float(spent))
+
+        variance_amount = spent_amount - budget_limit
+        variance_percentage = (variance_amount / budget_limit * 100.0) if budget_limit > 0 else 0.0
+
+        # Status and simple recommendation
+        if budget_limit <= 0:
+            status = 'no_budget'
+            recommendation = 'Set a budget for this category to enable tracking'
+        elif spent_amount > budget_limit:
+            status = 'over'
+            recommendation = f"Reduce spending or increase budget by ${variance_amount:.2f}"
+        elif spent_amount > budget_limit * 0.8:
+            status = 'warning'
+            recommendation = "Monitor closely; consider reallocating from underused budgets"
+        else:
+            status = 'under'
+            recommendation = "On track"
+
+        items.append({
+            'category_id': cat.id,
+            'category_name': cat.name,
+            'budget_limit': budget_limit,
+            'spent_amount': spent_amount,
+            'variance_amount': variance_amount,
+            'variance_percentage': variance_percentage,
+            'status': status,
+            'recommendation': recommendation
+        })
+
+        total_budgeted += budget_limit
+        total_spent += spent_amount
+
+    avg_variance = 0.0
+    if items:
+        avg_variance = sum(i['variance_percentage'] for i in items if total_budgeted > 0) / len(items)
+
+    summary = {
+        'total_budgeted': total_budgeted,
+        'total_spent': total_spent,
+        'overall_progress': (total_spent / total_budgeted * 100.0) if total_budgeted > 0 else 0.0,
+        'avg_variance_percentage': avg_variance,
+        'categories_over': len([i for i in items if i['status'] == 'over']),
+        'categories_warning': len([i for i in items if i['status'] == 'warning']),
+        'categories_under': len([i for i in items if i['status'] == 'under'])
+    }
+
+    return items, summary
+
+
+@api.route('/analytics/budget-variance', methods=['GET'])
+def get_budget_variance():
+    """Budget vs Actual analysis with variance and recommendations (Feature 1004)"""
+    try:
+        # Optional period; default to current month
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        if start_date_str:
+            try:
+                start_date_val = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return handle_error("Invalid start_date format. Use YYYY-MM-DD")
+        else:
+            today = date.today()
+            start_date_val = date(today.year, today.month, 1)
+
+        if end_date_str:
+            try:
+                end_date_val = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return handle_error("Invalid end_date format. Use YYYY-MM-DD")
+        else:
+            # End of current month (approximate: add one month then minus a day)
+            today = date.today()
+            if today.month == 12:
+                end_date_val = date(today.year, 12, 31)
+            else:
+                next_month_start = date(today.year, today.month + 1, 1)
+                end_date_val = next_month_start - timedelta(days=1)
+
+        items, summary = _compute_budget_variance(start_date_val, end_date_val)
+
+        return jsonify({
+            'period': {
+                'start_date': start_date_val.isoformat(),
+                'end_date': end_date_val.isoformat()
+            },
+            'categories': items,
+            'summary': summary,
+            'generated_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_error(f"Error fetching budget variance: {str(e)}", 500)
+
+
+@api.route('/analytics/spending-patterns', methods=['GET'])
+def get_spending_patterns():
+    """Spending pattern analysis identifying top categories and spikes (Feature 1004)"""
+    try:
+        # Analyze last 30 days by default
+        days = request.args.get('days', 30, type=int)
+        if days < 1 or days > 365:
+            return handle_error('days must be between 1 and 365')
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        # Total spend per category in window
+        rows = db.session.query(
+            Category.id,
+            Category.name,
+            func.sum(Transaction.amount).label('total')
+        ).join(Transaction).filter(
+            Transaction.type == 'expense',
+            Transaction.date >= start_date,
+            Transaction.date <= end_date
+        ).group_by(Category.id, Category.name).all()
+
+        totals = []
+        grand_total = 0.0
+        for cat_id, cat_name, total in rows:
+            spent = abs(float(total or 0.0))
+            totals.append({'category_id': cat_id, 'category_name': cat_name, 'total_spent': spent})
+            grand_total += spent
+
+        # Compute shares and top 5
+        for t in totals:
+            t['share_percentage'] = (t['total_spent'] / grand_total * 100.0) if grand_total > 0 else 0.0
+        totals.sort(key=lambda x: x['total_spent'], reverse=True)
+        top_categories = totals[:5]
+
+        # Simple spike detection: last 7 days vs prior 7-day average
+        last_7_start = end_date - timedelta(days=7)
+        prior_7_start = end_date - timedelta(days=14)
+        prior_7_end = end_date - timedelta(days=7)
+
+        spikes = []
+        expense_cats = Category.query.filter_by(type='expense').all()
+        for cat in expense_cats:
+            last7 = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == cat.id,
+                Transaction.type == 'expense',
+                Transaction.date >= last_7_start,
+                Transaction.date <= end_date
+            ).scalar() or 0.0
+            prior7 = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == cat.id,
+                Transaction.type == 'expense',
+                Transaction.date >= prior_7_start,
+                Transaction.date < prior_7_end
+            ).scalar() or 0.0
+
+            last7_abs = abs(float(last7))
+            prior7_abs = abs(float(prior7))
+            if prior7_abs > 0 and last7_abs > prior7_abs * 1.5 and last7_abs - prior7_abs > 25:
+                spikes.append({
+                    'category_id': cat.id,
+                    'category_name': cat.name,
+                    'last7_spent': last7_abs,
+                    'prior7_spent': prior7_abs,
+                    'spike_ratio': last7_abs / prior7_abs
+                })
+
+        return jsonify({
+            'period': {
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'days': days
+            },
+            'top_categories': top_categories,
+            'spending_spikes': spikes,
+            'generated_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_error(f"Error analyzing spending patterns: {str(e)}", 500)
+
+
+@api.route('/analytics/forecasts', methods=['GET'])
+def get_spending_forecasts():
+    """Forecast end-of-period spending based on current daily pace (Feature 1004)"""
+    try:
+        today = date.today()
+        start_date_val = date(today.year, today.month, 1)
+        if today.month == 12:
+            end_date_val = date(today.year, 12, 31)
+        else:
+            next_month_start = date(today.year, today.month + 1, 1)
+            end_date_val = next_month_start - timedelta(days=1)
+
+        days_elapsed = max(1, (today - start_date_val).days)
+        total_days = max(1, (end_date_val - start_date_val).days)
+        remaining_days = max(0, total_days - days_elapsed)
+
+        categories = Category.query.filter_by(type='expense').filter(Category.budget_limit.isnot(None)).all()
+        forecasts = []
+
+        for cat in categories:
+            budget_limit = float(cat.budget_limit or 0.0)
+            spent = db.session.query(func.sum(Transaction.amount)).filter(
+                Transaction.category_id == cat.id,
+                Transaction.type == 'expense',
+                Transaction.date >= start_date_val,
+                Transaction.date <= today
+            ).scalar() or 0.0
+            spent_amount = abs(float(spent))
+
+            daily_pace = spent_amount / float(days_elapsed)
+            forecasted_spend = spent_amount + daily_pace * float(remaining_days)
+            projected_over_amount = max(0.0, forecasted_spend - budget_limit)
+            status = 'projected_over' if projected_over_amount > 0 else ('tight' if budget_limit > 0 and forecasted_spend > budget_limit * 0.9 else 'on_track')
+
+            forecasts.append({
+                'category_id': cat.id,
+                'category_name': cat.name,
+                'budget_limit': budget_limit,
+                'spent_to_date': spent_amount,
+                'daily_pace': daily_pace,
+                'forecasted_spend': forecasted_spend,
+                'projected_over_amount': projected_over_amount,
+                'status': status
+            })
+
+        return jsonify({
+            'period': {
+                'start_date': start_date_val.isoformat(),
+                'end_date': end_date_val.isoformat(),
+                'days_elapsed': days_elapsed,
+                'total_days': total_days
+            },
+            'forecasts': forecasts,
+            'generated_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_error(f"Error generating forecasts: {str(e)}", 500)
+
+
+@api.route('/analytics/recommendations', methods=['GET'])
+def get_budget_recommendations_api():
+    """Actionable recommendations based on variance and health (Feature 1004)"""
+    try:
+        # Reuse advanced progress for health and pace insights
+        progress = get_budget_progress_advanced()
+        recommendations = []
+        for item in progress:
+            recs = []
+            if item['status'] == 'over' or item['pace_analysis']['predicted_overspend'] > 0:
+                recs.append('Reduce discretionary spending in this category')
+                recs.append('Consider reallocating budget from underused categories')
+            if item['variance_analysis']['variance_percentage'] > 15:
+                recs.append('Investigate recent purchases causing higher than expected spend')
+            if item['health_score'] < 60:
+                recs.append('Lower budget limit or tighten spending for remainder of period')
+            if not recs:
+                recs.append('Maintain current plan')
+
+            recommendations.append({
+                'category_id': item['category_id'],
+                'category_name': item['category_name'],
+                'recommendations': recs
+            })
+
+        return jsonify({
+            'recommendations': recommendations,
+            'generated_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_error(f"Error generating budget recommendations: {str(e)}", 500)
+
+
+@api.route('/analytics/export', methods=['GET'])
+def export_analytics():
+    """Export analytics reports (CSV for now) (Feature 1004)"""
+    try:
+        report = request.args.get('report', 'budget_variance')
+        export_format = request.args.get('format', 'csv')
+        if export_format != 'csv':
+            return handle_error('Only csv format is supported currently', 400)
+
+        # Generate budget variance CSV
+        if report == 'budget_variance':
+            # Compute for current month by default
+            today = date.today()
+            start_date_val = date(today.year, today.month, 1)
+            if today.month == 12:
+                end_date_val = date(today.year, 12, 31)
+            else:
+                next_month_start = date(today.year, today.month + 1, 1)
+                end_date_val = next_month_start - timedelta(days=1)
+
+            items, _summary = _compute_budget_variance(start_date_val, end_date_val)
+
+            rows = [
+                ['Category', 'Budget', 'Spent', 'Variance', 'Variance %', 'Status']
+            ]
+            for item in items:
+                rows.append([
+                    item['category_name'],
+                    f"{item['budget_limit']:.2f}",
+                    f"{item['spent_amount']:.2f}",
+                    f"{item['variance_amount']:.2f}",
+                    f"{item['variance_percentage']:.2f}",
+                    item['status']
+                ])
+
+            csv_content = '\n'.join([','.join(map(str, r)) for r in rows])
+            from flask import Response
+            resp = Response(csv_content, mimetype='text/csv')
+            resp.headers['Content-Disposition'] = 'attachment; filename=budget_variance.csv'
+            return resp
+
+        return handle_error('Unknown report type', 400)
+    except Exception as e:
+        return handle_error(f"Error exporting analytics: {str(e)}", 500)
+
+# ============================================================================
 # ENHANCED BUDGET ENDPOINTS (Feature 1001)
 # ============================================================================
 
@@ -1182,6 +1628,209 @@ def get_budget_predictive_alerts():
 
     except Exception as e:
         return handle_error(f"Error generating predictive alerts: {str(e)}", 500)
+
+# ============================================================================
+# INTELLIGENT ALERT SYSTEM ENDPOINTS (Feature 1003)
+# ============================================================================
+
+@api.route('/alerts', methods=['GET'])
+def list_alerts():
+    """List alerts with optional filtering and include snooze logic"""
+    try:
+        status = request.args.get('status')
+        severity = request.args.get('severity')
+        alert_type = request.args.get('type')
+        category_id = request.args.get('category_id', type=int)
+
+        query = Alert.query
+        now = datetime.now()
+
+        if status:
+            query = query.filter(Alert.status == status)
+        if severity:
+            query = query.filter(Alert.severity == severity)
+        if alert_type:
+            query = query.filter(Alert.type == alert_type)
+        if category_id:
+            query = query.filter(Alert.category_id == category_id)
+
+        # Exclude snoozed alerts only when not explicitly requesting snoozed
+        if not status or status != 'snoozed':
+            query = query.filter(~((Alert.status == 'snoozed') & (Alert.snooze_until.isnot(None)) & (Alert.snooze_until > now)))
+
+        alerts = query.order_by(desc(Alert.created_at)).all()
+
+        # Summary counts
+        counts = {
+            'total': len(alerts),
+            'high_priority': len([a for a in alerts if a.severity == 'high']),
+            'medium_priority': len([a for a in alerts if a.severity == 'medium']),
+            'low_priority': len([a for a in alerts if a.severity == 'low'])
+        }
+
+        return jsonify({
+            'alerts': [a.to_dict() for a in alerts],
+            'counts': counts,
+            'generated_at': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_error(f"Error listing alerts: {str(e)}", 500)
+
+
+@api.route('/alerts', methods=['POST'])
+def create_alert():
+    """Create a new alert (in-app only for now; email/SMS would be async hooks)"""
+    try:
+        data = request.get_json() or {}
+        required = ['type', 'message']
+        for field in required:
+            if field not in data:
+                return handle_error(f"Missing required field: {field}")
+
+        channels = data.get('channels', ['in_app'])
+        if isinstance(channels, list):
+            channels_str = ','.join(channels)
+        else:
+            channels_str = str(channels)
+
+        alert = Alert(
+            type=data['type'],
+            category_id=data.get('category_id'),
+            severity=data.get('severity', 'medium'),
+            message=data['message'],
+            channels=channels_str,
+            status='active',
+            metadata_json=json.dumps(data.get('metadata', {})) if data.get('metadata') else None
+        )
+        db.session.add(alert)
+        db.session.commit()
+        return jsonify(alert.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error creating alert: {str(e)}", 500)
+
+
+@api.route('/alerts/<int:alert_id>/dismiss', methods=['POST'])
+def dismiss_alert(alert_id):
+    """Dismiss an alert permanently"""
+    try:
+        alert = db.session.get(Alert, alert_id)
+        if not alert:
+            return handle_error('Alert not found', 404)
+        alert.status = 'dismissed'
+        alert.snooze_until = None
+        db.session.commit()
+        return jsonify({'message': 'Alert dismissed', 'alert': alert.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error dismissing alert: {str(e)}", 500)
+
+
+@api.route('/alerts/<int:alert_id>/snooze', methods=['POST'])
+def snooze_alert(alert_id):
+    """Snooze an alert for a specified number of hours (default 24h)"""
+    try:
+        data = request.get_json(silent=True) or {}
+        hours = int(data.get('hours', 24))
+        if hours <= 0:
+            return handle_error('Snooze hours must be positive')
+
+        alert = db.session.get(Alert, alert_id)
+        if not alert:
+            return handle_error('Alert not found', 404)
+
+        alert.status = 'snoozed'
+        alert.snooze_until = datetime.now() + timedelta(hours=hours)
+        db.session.commit()
+        return jsonify({'message': f'Alert snoozed for {hours} hours', 'alert': alert.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error snoozing alert: {str(e)}", 500)
+
+
+@api.route('/alerts/preferences', methods=['GET', 'POST'])
+def alert_preferences():
+    """Get or update notification preferences"""
+    try:
+        if request.method == 'GET':
+            prefs = NotificationPreference.query.first()
+            if not prefs:
+                prefs = NotificationPreference()
+                db.session.add(prefs)
+                db.session.commit()
+            return jsonify({'preferences': prefs.to_dict()})
+
+        # POST - update
+        data = request.get_json() or {}
+        prefs = NotificationPreference.query.first()
+        if not prefs:
+            prefs = NotificationPreference()
+            db.session.add(prefs)
+
+        for field in ['in_app_enabled', 'email_enabled', 'sms_enabled', 'push_enabled', 'quiet_hours_start', 'quiet_hours_end']:
+            if field in data:
+                setattr(prefs, field, data[field])
+        db.session.commit()
+        return jsonify({'preferences': prefs.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error handling preferences: {str(e)}", 500)
+
+
+@api.route('/alerts/anomalies/detect', methods=['POST'])
+def detect_anomalies():
+    """Simple anomaly detection: flag expense transaction > N x average daily for category"""
+    try:
+        data = request.get_json() or {}
+        category_id = data.get('category_id')
+        amount = float(data.get('amount', 0))
+        multiplier = float(data.get('multiplier', 5.0))
+        if not category_id or amount <= 0:
+            return handle_error('category_id and positive amount required')
+
+        # Compute average daily spending for this category over last 30 days
+        from datetime import date, timedelta as td
+        end_date = date.today()
+        start_date = end_date - td(days=30)
+        avg_spent = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.category_id == category_id,
+            Transaction.type == 'expense',
+            Transaction.date >= start_date,
+            Transaction.date <= end_date
+        ).scalar() or 0
+        avg_daily = abs(float(avg_spent)) / 30.0
+
+        is_anomaly = amount > (avg_daily * multiplier)
+
+        result = {
+            'category_id': category_id,
+            'amount': amount,
+            'average_daily': avg_daily,
+            'multiplier_threshold': multiplier,
+            'is_anomaly': is_anomaly
+        }
+
+        # Optionally create an alert
+        if is_anomaly:
+            category = db.session.get(Category, category_id)
+            msg = f"Unusual spending detected in {category.name if category else 'category'}: ${amount:.2f} (> {multiplier}x avg)"
+            alert = Alert(
+                type='anomaly',
+                category_id=category_id,
+                severity='high',
+                message=msg,
+                channels='in_app',
+                status='active',
+                metadata_json=json.dumps({'average_daily': avg_daily, 'amount': amount, 'multiplier': multiplier})
+            )
+            db.session.add(alert)
+            db.session.commit()
+            result['alert'] = alert.to_dict()
+
+        return jsonify(result)
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error detecting anomalies: {str(e)}", 500)
 
 def _interpret_performance_score(score):
     """Interpret the performance score with human-readable description"""

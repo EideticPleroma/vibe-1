@@ -103,6 +103,34 @@ class Category(db.Model):
     def __repr__(self):
         return f'<Category {self.name} ({self.type}) - {self.budget_type} {self.budget_period} budget>'
 
+class Income(db.Model):
+    """Income model for managing income sources (Feature 2001)"""
+    __tablename__ = 'incomes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    income_type = db.Column(db.String(50), nullable=True)  # salary, freelance, investments, etc.
+    frequency = db.Column(db.String(20), nullable=False, default='monthly')  # weekly, bi-weekly, monthly, annually
+    source_name = db.Column(db.String(100), nullable=False)
+    is_bonus = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'amount': float(self.amount),
+            'type': self.income_type,
+            'frequency': self.frequency,
+            'source_name': self.source_name,
+            'is_bonus': self.is_bonus,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<Income {self.source_name} {self.income_type or ''} {self.frequency} ${self.amount}>"
+
 class Transaction(db.Model):
     """Financial transaction model"""
     __tablename__ = 'transactions'
@@ -221,18 +249,121 @@ class Investment(db.Model):
     def __repr__(self):
         return f'<Investment {self.asset_name} ({self.quantity} @ ${self.current_price})>'
 
+# ============================================================================
+# INTELLIGENT ALERT SYSTEM MODELS (Feature 1003)
+# ============================================================================
+
+class Alert(db.Model):
+    """Alert model for intelligent notifications (Feature 1003)"""
+    __tablename__ = 'alerts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(50), nullable=False)  # budget_threshold, anomaly, health, pace, variance
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
+    severity = db.Column(db.String(20), nullable=False, default='medium')  # high, medium, low
+    message = db.Column(db.String(255), nullable=False)
+    channels = db.Column(db.String(100), nullable=False, default='in_app')  # comma-separated channels
+    status = db.Column(db.String(20), nullable=False, default='active')  # active, dismissed, snoozed
+    snooze_until = db.Column(db.DateTime, nullable=True)
+    metadata_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    category = db.relationship('Category', backref='alerts', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'type': self.type,
+            'category_id': self.category_id,
+            'category_name': self.category.name if self.category else None,
+            'severity': self.severity,
+            'message': self.message,
+            'channels': self.channels.split(',') if self.channels else [],
+            'status': self.status,
+            'snooze_until': self.snooze_until.isoformat() if self.snooze_until else None,
+            'metadata': json.loads(self.metadata_json) if self.metadata_json else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+class NotificationPreference(db.Model):
+    """Notification preferences (global for now; user-scoped in future)"""
+    __tablename__ = 'notification_preferences'
+
+    id = db.Column(db.Integer, primary_key=True)
+    in_app_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    email_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    sms_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    push_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    quiet_hours_start = db.Column(db.String(5), nullable=True)  # HH:MM
+    quiet_hours_end = db.Column(db.String(5), nullable=True)    # HH:MM
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            'in_app_enabled': self.in_app_enabled,
+            'email_enabled': self.email_enabled,
+            'sms_enabled': self.sms_enabled,
+            'push_enabled': self.push_enabled,
+            'quiet_hours_start': self.quiet_hours_start,
+            'quiet_hours_end': self.quiet_hours_end,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
 # Utility functions for common operations
 def get_total_income(start_date=None, end_date=None):
-    """Get total income for a date range"""
+    """Get total income.
+
+    - If a date range is provided, use transactions for historical accuracy.
+    - If no date range and Income records exist, use configured incomes normalized to monthly (Feature 2001).
+    - Otherwise, fall back to summing income transactions.
+    """
+    # If a date range is specified, defer to transactions-based computation
+    if start_date or end_date:
+        query = Transaction.query.filter_by(type='income')
+        if start_date:
+            query = query.filter(Transaction.date >= start_date)
+        if end_date:
+            query = query.filter(Transaction.date <= end_date)
+        result = query.with_entities(db.func.sum(Transaction.amount)).scalar()
+        return float(result) if result else 0.0
+
+    # No date range: prefer configured incomes if present
+    try:
+        income_count = Income.query.count()
+    except Exception:
+        income_count = 0
+
+    if income_count > 0:
+        return _get_total_configured_income_monthly()
+
+    # Fallback to transactions
     query = Transaction.query.filter_by(type='income')
-    
-    if start_date:
-        query = query.filter(Transaction.date >= start_date)
-    if end_date:
-        query = query.filter(Transaction.date <= end_date)
-    
     result = query.with_entities(db.func.sum(Transaction.amount)).scalar()
     return float(result) if result else 0.0
+
+def _get_total_configured_income_monthly():
+    """Compute total monthly income from configured Income records (Feature 2001)."""
+    incomes = Income.query.all()
+    total = 0.0
+    for inc in incomes:
+        amount = float(inc.amount or 0.0)
+        freq = (inc.frequency or 'monthly').lower()
+        if freq == 'weekly':
+            monthly_equivalent = amount * 4.33
+        elif freq in ('bi-weekly', 'biweekly', 'fortnightly'):
+            monthly_equivalent = amount * 2.165
+        elif freq == 'monthly':
+            monthly_equivalent = amount
+        elif freq == 'annually' or freq == 'yearly':
+            monthly_equivalent = amount / 12.0
+        else:
+            monthly_equivalent = amount
+        total += monthly_equivalent
+    return total
 
 def get_total_expenses(start_date=None, end_date=None):
     """Get total expenses for a date range"""
