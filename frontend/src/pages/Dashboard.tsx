@@ -8,7 +8,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-import { dashboardApi, analyticsApi, formatCurrency, formatPercentage } from '../services/api.ts';
+import { dashboardApi, analyticsApi, formatCurrency, formatPercentage } from '../services/api';
 import { DashboardData, SpendingTrends } from '../types';
 
 const Dashboard: React.FC = () => {
@@ -27,7 +27,8 @@ const Dashboard: React.FC = () => {
       setDashboardData(dashboard);
       setSpendingTrends(trends);
     } catch (err) {
-      setError(err.message || 'Failed to load dashboard data - check console for details');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data - check console for details';
+      setError(errorMessage);
       console.error('Dashboard error:', err);
     } finally {
       setLoading(false);

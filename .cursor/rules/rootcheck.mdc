@@ -1,0 +1,11 @@
+---
+rule: project_root_file_check
+target: project_root
+alwaysApply: true
+check:
+  type: file_exists
+  path: ${project_root}/README.md
+on_failure:
+  message: "Warning: README.md not found in the project root directory. This file is required for proper project documentation."
+  suggestion: "Create a README.md file in the project root (${project_root}) with basic project information."
+---

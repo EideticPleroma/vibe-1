@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, TrendingUp, TrendingDown, Edit, Trash2, DollarSign, X } from 'lucide-react';
-import { investmentsApi, formatCurrency, formatPercentage, formatDate } from '../services/api.ts';
+import { investmentsApi, formatCurrency, formatPercentage, formatDate } from '../services/api';
 import { Investment, InvestmentFormData } from '../types';
 
 const Investments: React.FC = () => {

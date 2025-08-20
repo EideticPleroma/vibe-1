@@ -129,7 +129,7 @@ def test_budget_only_for_expense(populated_db):
     assert response.status_code == 400
     data = response.get_json()
     assert 'error' in data
-    assert data['error'] == "Budget limit can only be set for expense categories"
+    assert data['error'] == "Budget settings can only be configured for expense categories"
 
 def test_create_budget_only_for_expense(client):
     data = {'name': 'Test Income', 'type': 'income', 'budget_limit': 100.0}
@@ -137,7 +137,7 @@ def test_create_budget_only_for_expense(client):
     assert response.status_code == 400
     data = response.get_json()
     assert 'error' in data
-    assert data['error'] == "Budget limit can only be set for expense categories"
+    assert data['error'] == "Budget settings can only be configured for expense categories"
 
 # ============================================================================
 # TRANSACTION TESTS

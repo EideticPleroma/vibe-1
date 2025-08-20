@@ -1,0 +1,41 @@
+# Categories Management Test Scenarios
+
+Based on the comprehensive test scenarios from test_scenarios.txt, these scenarios specifically test the Categories Management functionality.
+
+## 1. Categories Management
+Categories allow creating, reading, updating, and deleting budget categories (income/expense types).
+
+- **Scenario 1: Create a new category (Positive)**
+  - Description: Verify a new category can be added.
+  - Steps: POST to `/api/categories` with JSON body `{ "name": "Utilities", "type": "expense", "color": "#CCCCCC" }`.
+  - Expected Outcome: Response code 201, with the new category in the response body. GET `/api/categories` shows it listed.
+
+- **Scenario 2: Create category with missing fields (Negative)**
+  - Description: Ensure validation prevents incomplete creations.
+  - Steps: POST to `/api/categories` with JSON body `{ "name": "Invalid" }` (missing "type").
+  - Expected Outcome: Response code 400, error message like "Name and type are required fields".
+
+- **Scenario 3: Create duplicate category (Negative)**
+  - Description: Prevent duplicate names.
+  - Steps: Create a category with name "Groceries", then attempt to create another with the same name.
+  - Expected Outcome: Response code 400, error message like "Category with this name already exists".
+
+- **Scenario 4: Update existing category (Positive)**
+  - Description: Verify updates to name/color.
+  - Steps: PUT to `/api/categories/<id>` with JSON body `{ "name": "Groceries Updated", "color": "#FF3333" }`.
+  - Expected Outcome: Response code 200, GET `/api/categories` reflects changes.
+
+- **Scenario 5: Delete category with transactions (Negative)**
+  - Description: Prevent deletion if linked to transactions.
+  - Steps: Create a category, add a transaction to it, then DELETE `/api/categories/<id>`.
+  - Expected Outcome: Response code 400, error message like "Cannot delete category with existing transactions".
+
+- **Scenario 6: Delete unused category (Positive)**
+  - Description: Allow deletion of unused categories.
+  - Steps: Create a category with no transactions, then DELETE `/api/categories/<id>`.
+  - Expected Outcome: Response code 200, GET `/api/categories` no longer lists it.
+
+- **Scenario 7: Get categories with many entries (Edge)**
+  - Description: Handle large lists.
+  - Steps: Populate 100+ categories, then GET `/api/categories`.
+  - Expected Outcome: Response code 200, all categories returned without performance issues.

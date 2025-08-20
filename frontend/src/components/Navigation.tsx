@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  CreditCard, 
-  Tag, 
-  TrendingUp, 
-  BarChart3, 
-  Menu, 
+import {
+  Home,
+  CreditCard,
+  Tag,
+  TrendingUp,
+  BarChart3,
+  Menu,
   X,
   DollarSign,
-  PiggyBank
+  PiggyBank,
+  Target
 } from 'lucide-react';
 
 const Navigation: React.FC = () => {
@@ -18,6 +19,7 @@ const Navigation: React.FC = () => {
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Budget', href: '/budget', icon: Target },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Categories', href: '/categories', icon: Tag },
     { name: 'Investments', href: '/investments', icon: TrendingUp },

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
-import { transactionsApi, categoriesApi, formatCurrency, formatDate } from '../services/api.ts';
+import { transactionsApi, categoriesApi, formatCurrency, formatDate } from '../services/api';
 import { Transaction, Category, TransactionFormData } from '../types';
-import TransactionModal from '../components/TransactionModal.tsx';
+import TransactionModal from '../components/TransactionModal';
 
 const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
