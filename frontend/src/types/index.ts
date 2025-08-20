@@ -378,3 +378,188 @@ export interface BarChartData {
     borderWidth: number;
   }>;
 }
+
+// ============================================================================
+// BUDGET METHODOLOGY TYPES (Feature 1005)
+// ============================================================================
+
+export interface BudgetMethodology {
+  id: number;
+  name: string;
+  description: string;
+  methodology_type: 'zero_based' | 'percentage_based' | 'envelope';
+  is_active: boolean;
+  is_default: boolean;
+  configuration: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BudgetMethodologyFormData {
+  name: string;
+  description: string;
+  methodology_type: 'zero_based' | 'percentage_based' | 'envelope';
+  is_active: boolean;
+  is_default: boolean;
+  configuration: Record<string, any>;
+}
+
+// Configuration types for different methodologies
+export interface ZeroBasedConfiguration {
+  // Zero-based budgeting typically doesn't need specific configuration
+}
+
+export interface PercentageBasedConfiguration {
+  needs_percentage: number;     // e.g., 50 for 50/30/20 rule
+  wants_percentage: number;     // e.g., 30 for 50/30/20 rule
+  savings_percentage: number;   // e.g., 20 for 50/30/20 rule
+}
+
+export interface EnvelopeConfiguration {
+  allow_envelope_transfer: boolean;
+  rollover_unused: boolean;
+  max_transfer_percentage?: number;
+}
+
+// Calculation result types
+export interface BudgetAllocation {
+  category_id: number;
+  category_name: string;
+  priority: string;
+  allocated_amount: number;
+  percentage_of_income: number;
+  category_type?: string; // For percentage-based (needs/wants/savings)
+}
+
+export interface EnvelopeAllocation {
+  category_id: number;
+  category_name: string;
+  priority: string;
+  envelope_amount: number;
+  percentage_of_income: number;
+  envelope_status: string;
+}
+
+export interface ZeroBasedCalculationResult {
+  methodology: string;
+  total_income: number;
+  allocations: BudgetAllocation[];
+  unallocated: number;
+  total_allocated: number;
+  recommendations: string[];
+}
+
+export interface PercentageBasedCalculationResult {
+  methodology: string;
+  total_income: number;
+  allocations: BudgetAllocation[];
+  category_breakdown: {
+    needs: {
+      budget: number;
+      allocated: number;
+      remaining: number;
+      categories: BudgetAllocation[];
+    };
+    wants: {
+      budget: number;
+      allocated: number;
+      remaining: number;
+      categories: BudgetAllocation[];
+    };
+    savings: {
+      budget: number;
+      allocated: number;
+      remaining: number;
+      categories: BudgetAllocation[];
+    };
+  };
+  recommendations: string[];
+}
+
+export interface EnvelopeCalculationResult {
+  methodology: string;
+  total_income: number;
+  envelopes: EnvelopeAllocation[];
+  total_allocated: number;
+  unallocated: number;
+  recommendations: string[];
+}
+
+export type MethodologyCalculationResult = 
+  | ZeroBasedCalculationResult 
+  | PercentageBasedCalculationResult 
+  | EnvelopeCalculationResult;
+
+export interface MethodologyCalculationResponse {
+  calculation_result: MethodologyCalculationResult;
+  generated_at: string;
+}
+
+export interface MethodologyApplicationResponse {
+  message: string;
+  calculation_result: MethodologyCalculationResult;
+  auto_updated: boolean;
+  generated_at: string;
+}
+
+export interface MethodologyValidationResponse {
+  methodology_id: number;
+  methodology_name: string;
+  is_valid: boolean;
+  error_message: string | null;
+  configuration: Record<string, any>;
+}
+
+export interface MethodologyComparison {
+  methodology_id: number;
+  methodology_name: string;
+  methodology_type: string;
+  calculation_result: MethodologyCalculationResult;
+}
+
+export interface MethodologyComparisonResponse {
+  comparisons: MethodologyComparison[];
+  total_income: number;
+  generated_at: string;
+}
+
+export interface MethodologyRecommendation {
+  methodology_type: 'zero_based' | 'percentage_based' | 'envelope';
+  reason: string;
+  confidence: number;
+  best_for: string;
+}
+
+export interface UserFinancialProfile {
+  total_income: number;
+  total_expenses: number;
+  savings_rate: number;
+  categories_count: number;
+  overspending_categories: number;
+}
+
+export interface MethodologyRecommendationsResponse {
+  recommendations: MethodologyRecommendation[];
+  user_profile: UserFinancialProfile;
+  generated_at: string;
+}
+
+export interface MethodologyActivationResponse {
+  message: string;
+  methodology: BudgetMethodology;
+}
+
+// Form data for methodology operations
+export interface MethodologyCalculationRequest {
+  total_income?: number;
+}
+
+export interface MethodologyApplicationRequest {
+  total_income?: number;
+  auto_update: boolean;
+}
+
+export interface MethodologyComparisonRequest {
+  methodology_ids: number[];
+  total_income?: number;
+}

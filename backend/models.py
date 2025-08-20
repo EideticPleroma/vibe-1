@@ -583,3 +583,351 @@ def get_budget_performance_score():
 
     # Return average score
     return total_score / len(categories)
+
+# ============================================================================
+# BUDGET METHODOLOGY MODEL (Feature 1005)
+# ============================================================================
+
+class BudgetMethodology(db.Model):
+    """Budget methodology model for supporting different budgeting approaches"""
+    __tablename__ = 'budget_methodologies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    methodology_type = db.Column(db.String(50), nullable=False)  # 'zero_based', 'percentage_based', 'envelope'
+    is_active = db.Column(db.Boolean, nullable=False, default=False)  # Only one can be active at a time
+    is_default = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Configuration parameters stored as JSON
+    configuration = db.Column(db.Text, nullable=True)  # JSON string for methodology-specific config
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    def get_configuration(self):
+        """Get configuration as a Python dictionary"""
+        if self.configuration:
+            try:
+                return json.loads(self.configuration)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_configuration(self, config_dict):
+        """Set configuration from a Python dictionary"""
+        self.configuration = json.dumps(config_dict)
+    
+    def to_dict(self):
+        """Convert model to dictionary for JSON serialization"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'methodology_type': self.methodology_type,
+            'is_active': self.is_active,
+            'is_default': self.is_default,
+            'configuration': self.get_configuration(),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self):
+        return f'<BudgetMethodology {self.name} ({self.methodology_type}) - {"Active" if self.is_active else "Inactive"}>'
+
+# ============================================================================
+# METHODOLOGY CALCULATION ENGINES (Feature 1005)
+# ============================================================================
+
+class BudgetMethodologyEngine:
+    """Base class for budget methodology calculation engines"""
+    
+    def __init__(self, methodology: BudgetMethodology):
+        self.methodology = methodology
+        self.config = methodology.get_configuration()
+    
+    def calculate_category_budgets(self, total_income: float, categories: list) -> dict:
+        """Calculate budget allocations for categories based on methodology"""
+        raise NotImplementedError("Subclasses must implement calculate_category_budgets")
+    
+    def get_recommendations(self, current_spending: dict, total_income: float) -> list:
+        """Get methodology-specific recommendations"""
+        return []
+    
+    def validate_configuration(self) -> tuple:
+        """Validate methodology configuration. Returns (is_valid, error_message)"""
+        return True, None
+
+class ZeroBasedBudgetEngine(BudgetMethodologyEngine):
+    """Zero-based budgeting methodology engine"""
+    
+    def calculate_category_budgets(self, total_income: float, categories: list) -> dict:
+        """
+        Zero-based budgeting: Every dollar gets assigned a purpose
+        Prioritize essential categories first, then discretionary
+        """
+        results = {
+            'methodology': 'Zero-Based Budgeting',
+            'total_income': total_income,
+            'allocations': [],
+            'unallocated': total_income,
+            'recommendations': []
+        }
+        
+        # Sort categories by priority (critical -> essential -> important -> discretionary)
+        priority_order = {'critical': 0, 'essential': 1, 'important': 2, 'discretionary': 3}
+        sorted_categories = sorted(categories, key=lambda c: priority_order.get(c.budget_priority, 4))
+        
+        remaining_income = total_income
+        
+        for category in sorted_categories:
+            if remaining_income <= 0:
+                break
+            
+            # For zero-based, use existing budget or suggest based on priority
+            if category.budget_limit and category.budget_limit > 0:
+                allocation = min(float(category.budget_limit), remaining_income)
+            else:
+                # Suggest allocation based on priority and remaining income
+                if category.budget_priority == 'critical':
+                    allocation = min(remaining_income * 0.3, remaining_income)
+                elif category.budget_priority == 'essential':
+                    allocation = min(remaining_income * 0.2, remaining_income)
+                elif category.budget_priority == 'important':
+                    allocation = min(remaining_income * 0.15, remaining_income)
+                else:  # discretionary
+                    allocation = min(remaining_income * 0.1, remaining_income)
+            
+            if allocation > 0:
+                results['allocations'].append({
+                    'category_id': category.id,
+                    'category_name': category.name,
+                    'priority': category.budget_priority,
+                    'allocated_amount': allocation,
+                    'percentage_of_income': (allocation / total_income) * 100 if total_income > 0 else 0
+                })
+                remaining_income -= allocation
+        
+        results['unallocated'] = remaining_income
+        results['total_allocated'] = total_income - remaining_income
+        
+        # Add recommendations
+        if remaining_income > 0:
+            results['recommendations'].append(f"You have ${remaining_income:.2f} unallocated. Consider assigning to savings or emergency fund.")
+        
+        return results
+
+class PercentageBasedBudgetEngine(BudgetMethodologyEngine):
+    """50/30/20 and other percentage-based budgeting methodology engine"""
+    
+    def calculate_category_budgets(self, total_income: float, categories: list) -> dict:
+        """
+        Percentage-based budgeting (e.g., 50/30/20 rule)
+        50% needs, 30% wants, 20% savings and debt repayment
+        """
+        config = self.config
+        
+        # Default to 50/30/20 if not configured
+        needs_percentage = config.get('needs_percentage', 50)
+        wants_percentage = config.get('wants_percentage', 30)
+        savings_percentage = config.get('savings_percentage', 20)
+        
+        results = {
+            'methodology': f'{needs_percentage}/{wants_percentage}/{savings_percentage} Rule',
+            'total_income': total_income,
+            'allocations': [],
+            'category_breakdown': {
+                'needs': {'budget': total_income * (needs_percentage / 100), 'categories': []},
+                'wants': {'budget': total_income * (wants_percentage / 100), 'categories': []},
+                'savings': {'budget': total_income * (savings_percentage / 100), 'categories': []}
+            },
+            'recommendations': []
+        }
+        
+        # Categorize based on priority
+        for category in categories:
+            category_type = self._categorize_by_priority(category.budget_priority)
+            
+            # Calculate suggested allocation based on category type and historical spending
+            suggested_amount = self._calculate_suggested_allocation(
+                category, results['category_breakdown'][category_type]['budget'], categories
+            )
+            
+            allocation = {
+                'category_id': category.id,
+                'category_name': category.name,
+                'category_type': category_type,
+                'priority': category.budget_priority,
+                'allocated_amount': suggested_amount,
+                'percentage_of_income': (suggested_amount / total_income) * 100 if total_income > 0 else 0
+            }
+            
+            results['allocations'].append(allocation)
+            results['category_breakdown'][category_type]['categories'].append(allocation)
+        
+        # Calculate totals and remaining for each category type
+        for cat_type in results['category_breakdown']:
+            allocated = sum(cat['allocated_amount'] for cat in results['category_breakdown'][cat_type]['categories'])
+            results['category_breakdown'][cat_type]['allocated'] = allocated
+            results['category_breakdown'][cat_type]['remaining'] = results['category_breakdown'][cat_type]['budget'] - allocated
+        
+        return results
+    
+    def _categorize_by_priority(self, priority: str) -> str:
+        """Map category priority to needs/wants/savings"""
+        if priority in ['critical', 'essential']:
+            return 'needs'
+        elif priority == 'important':
+            return 'wants'
+        else:  # discretionary
+            return 'savings'
+    
+    def _calculate_suggested_allocation(self, category, available_budget: float, all_categories: list) -> float:
+        """Calculate suggested allocation for a category within its budget type"""
+        # If category has existing budget, use proportional allocation
+        if category.budget_limit and category.budget_limit > 0:
+            return min(float(category.budget_limit), available_budget)
+        
+        # Otherwise, distribute evenly among categories of same type
+        same_type_categories = [c for c in all_categories if self._categorize_by_priority(c.budget_priority) == self._categorize_by_priority(category.budget_priority)]
+        return available_budget / len(same_type_categories) if same_type_categories else 0
+
+class EnvelopeBudgetEngine(BudgetMethodologyEngine):
+    """Envelope budgeting methodology engine"""
+    
+    def calculate_category_budgets(self, total_income: float, categories: list) -> dict:
+        """
+        Envelope budgeting: Allocate specific amounts to each "envelope" (category)
+        Each envelope has a fixed budget that cannot be exceeded
+        """
+        results = {
+            'methodology': 'Envelope Budgeting',
+            'total_income': total_income,
+            'envelopes': [],
+            'total_allocated': 0,
+            'unallocated': total_income,
+            'recommendations': []
+        }
+        
+        # Create envelopes for each category
+        total_allocated = 0
+        
+        for category in categories:
+            # Use existing budget or calculate based on historical spending
+            if category.budget_limit and category.budget_limit > 0:
+                envelope_amount = float(category.budget_limit)
+            else:
+                # Suggest envelope amount based on priority and available funds
+                envelope_amount = self._suggest_envelope_amount(category, total_income - total_allocated)
+            
+            envelope = {
+                'category_id': category.id,
+                'category_name': category.name,
+                'priority': category.budget_priority,
+                'envelope_amount': envelope_amount,
+                'percentage_of_income': (envelope_amount / total_income) * 100 if total_income > 0 else 0,
+                'envelope_status': 'active'
+            }
+            
+            results['envelopes'].append(envelope)
+            total_allocated += envelope_amount
+        
+        results['total_allocated'] = total_allocated
+        results['unallocated'] = total_income - total_allocated
+        
+        # Add recommendations
+        if results['unallocated'] < 0:
+            results['recommendations'].append(f"Over-allocated by ${abs(results['unallocated']):.2f}. Consider reducing some envelope amounts.")
+        elif results['unallocated'] > total_income * 0.1:  # More than 10% unallocated
+            results['recommendations'].append(f"${results['unallocated']:.2f} unallocated. Consider creating additional envelopes for savings or emergency fund.")
+        
+        return results
+    
+    def _suggest_envelope_amount(self, category, remaining_income: float) -> float:
+        """Suggest envelope amount based on category priority and remaining income"""
+        if remaining_income <= 0:
+            return 0
+        
+        if category.budget_priority == 'critical':
+            return min(remaining_income * 0.25, remaining_income)
+        elif category.budget_priority == 'essential':
+            return min(remaining_income * 0.15, remaining_income)
+        elif category.budget_priority == 'important':
+            return min(remaining_income * 0.10, remaining_income)
+        else:  # discretionary
+            return min(remaining_income * 0.05, remaining_income)
+
+# ============================================================================
+# METHODOLOGY FACTORY AND UTILITIES (Feature 1005)
+# ============================================================================
+
+class BudgetMethodologyFactory:
+    """Factory for creating methodology engines"""
+    
+    @staticmethod
+    def create_engine(methodology: BudgetMethodology) -> BudgetMethodologyEngine:
+        """Create appropriate engine for the methodology"""
+        engine_map = {
+            'zero_based': ZeroBasedBudgetEngine,
+            'percentage_based': PercentageBasedBudgetEngine,
+            'envelope': EnvelopeBudgetEngine
+        }
+        
+        engine_class = engine_map.get(methodology.methodology_type)
+        if not engine_class:
+            raise ValueError(f"Unknown methodology type: {methodology.methodology_type}")
+        
+        return engine_class(methodology)
+
+def get_active_methodology():
+    """Get the currently active budget methodology"""
+    return BudgetMethodology.query.filter_by(is_active=True).first()
+
+def set_active_methodology(methodology_id: int):
+    """Set a methodology as active (deactivating others)"""
+    # Deactivate all methodologies
+    BudgetMethodology.query.update({'is_active': False})
+    
+    # Activate the selected methodology
+    methodology = db.session.get(BudgetMethodology, methodology_id)
+    if methodology:
+        methodology.is_active = True
+        db.session.commit()
+        return methodology
+    return None
+
+def calculate_methodology_budget(methodology_id: int, total_income: float = None):
+    """Calculate budget using specified methodology"""
+    methodology = db.session.get(BudgetMethodology, methodology_id)
+    if not methodology:
+        raise ValueError(f"Methodology with ID {methodology_id} not found")
+    
+    # Get total income if not provided
+    if total_income is None:
+        from datetime import date
+        current_date = date.today()
+        month_start = date(current_date.year, current_date.month, 1)
+        total_income = get_total_income(month_start, current_date)
+    
+    # Get all expense categories
+    categories = Category.query.filter_by(type='expense').all()
+    
+    # Create engine and calculate
+    engine = BudgetMethodologyFactory.create_engine(methodology)
+    return engine.calculate_category_budgets(total_income, categories)
+
+def apply_methodology_to_categories(methodology_id: int, total_income: float = None, auto_update: bool = False):
+    """Apply methodology calculations to category budgets"""
+    calculation_result = calculate_methodology_budget(methodology_id, total_income)
+    
+    if auto_update:
+        # Update category budgets with calculated values
+        for allocation in calculation_result.get('allocations', []):
+            category = db.session.get(Category, allocation['category_id'])
+            if category:
+                category.budget_limit = allocation['allocated_amount']
+        
+        db.session.commit()
+    
+    return calculation_result
