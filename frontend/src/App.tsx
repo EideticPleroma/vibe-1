@@ -12,6 +12,7 @@ import Categories from './pages/Categories';
 import Investments from './pages/Investments';
 import Analytics from './pages/Analytics';
 import Alerts from './pages/Alerts';
+import Goals from './pages/Goals';
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,6 +37,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/budget" element={<Budget />} />
             <Route path="/budget-methodologies" element={<BudgetMethodologyPage />} />
+            <Route path="/goals" element={<Goals />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/investments" element={<Investments />} />

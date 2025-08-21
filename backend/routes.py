@@ -11,7 +11,7 @@ from models import (
     get_budget_progress_advanced, get_budget_historical_trends,
     get_transaction_budget_impact, get_budget_performance_score,
     get_active_methodology, set_active_methodology, calculate_methodology_budget,
-    apply_methodology_to_categories, BudgetMethodologyFactory
+    apply_methodology_to_categories, BudgetMethodologyFactory, BudgetGoal
 )
 from datetime import datetime, date
 from sqlalchemy import desc, func
@@ -2222,3 +2222,140 @@ def get_methodology_recommendations():
         
     except Exception as e:
         return handle_error(f"Error generating methodology recommendations: {str(e)}", 500)
+
+# ============================================================================
+# BUDGET GOALS ROUTES (Feature 1006)
+# ============================================================================
+
+@api.route('/goals', methods=['GET'])
+def get_goals():
+    """Get all budget goals"""
+    try:
+        goals = BudgetGoal.query.all()
+        return jsonify([goal.to_dict() for goal in goals])
+    except Exception as e:
+        return handle_error(f"Error fetching goals: {str(e)}", 500)
+
+@api.route('/goals', methods=['POST'])
+def create_goal():
+    """Create a new budget goal"""
+    try:
+        data = request.get_json()
+        required_fields = ['name', 'target_amount']
+        for field in required_fields:
+            if field not in data:
+                return handle_error(f"Missing required field: {field}")
+
+        goal = BudgetGoal(
+            name=data['name'],
+            description=data.get('description'),
+            target_amount=data['target_amount'],
+            deadline=datetime.strptime(data['deadline'], '%Y-%m-%d').date() if data.get('deadline') else None
+        )
+        db.session.add(goal)
+        db.session.commit()
+        return jsonify(goal.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error creating goal: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>', methods=['GET'])
+def get_goal(goal_id):
+    """Get a specific budget goal"""
+    try:
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        return jsonify(goal.to_dict())
+    except Exception as e:
+        return handle_error(f"Error fetching goal: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>', methods=['PUT'])
+def update_goal(goal_id):
+    """Update a budget goal"""
+    try:
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        data = request.get_json()
+        if 'name' in data:
+            goal.name = data['name']
+        if 'description' in data:
+            goal.description = data['description']
+        if 'target_amount' in data:
+            goal.target_amount = data['target_amount']
+        if 'current_amount' in data:
+            goal.current_amount = data['current_amount']
+        if 'deadline' in data:
+            goal.deadline = datetime.strptime(data['deadline'], '%Y-%m-%d').date() if data['deadline'] else None
+        db.session.commit()
+        return jsonify(goal.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error updating goal: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>', methods=['DELETE'])
+def delete_goal(goal_id):
+    """Delete a budget goal"""
+    try:
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        db.session.delete(goal)
+        db.session.commit()
+        return jsonify({'message': 'Goal deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error deleting goal: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>/allocate-category', methods=['POST'])
+def allocate_category_to_goal(goal_id):
+    """Allocate a category to a goal"""
+    try:
+        data = request.get_json()
+        category_id = data.get('category_id')
+        if not category_id:
+            return handle_error("category_id is required")
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        category = db.session.get(Category, category_id)
+        if not category:
+            return handle_error("Category not found", 404)
+        if category not in goal.categories:
+            goal.categories.append(category)
+            db.session.commit()
+        return jsonify(goal.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error allocating category: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>/remove-category/<int:category_id>', methods=['DELETE'])
+def remove_category_from_goal(goal_id, category_id):
+    """Remove a category allocation from a goal"""
+    try:
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        category = db.session.get(Category, category_id)
+        if not category:
+            return handle_error("Category not found", 404)
+        if category in goal.categories:
+            goal.categories.remove(category)
+            db.session.commit()
+        return jsonify(goal.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return handle_error(f"Error removing category allocation: {str(e)}", 500)
+
+@api.route('/goals/<int:goal_id>/update-progress', methods=['POST'])
+def update_goal_progress(goal_id):
+    """Update goal progress calculation"""
+    try:
+        goal = db.session.get(BudgetGoal, goal_id)
+        if not goal:
+            return handle_error("Goal not found", 404)
+        goal.update_progress()
+        return jsonify(goal.to_dict())
+    except Exception as e:
+        return handle_error(f"Error updating goal progress: {str(e)}", 500)

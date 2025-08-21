@@ -23,6 +23,7 @@ const Navigation: React.FC = () => {
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Budget', href: '/budget', icon: Target },
     { name: 'Budget Methodologies', href: '/budget-methodologies', icon: Calculator },
+    { name: 'Goals', href: '/goals', icon: Target },
     { name: 'Transactions', href: '/transactions', icon: CreditCard },
     { name: 'Categories', href: '/categories', icon: Tag },
     { name: 'Investments', href: '/investments', icon: TrendingUp },
