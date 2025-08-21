@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from models import (
     db, Category, Transaction, Investment, Income, Alert, NotificationPreference,
-    get_total_income, get_total_expenses, get_net_income
+    get_total_income, get_total_expenses, get_net_income, BudgetMethodology, BudgetGoal
 )
 from app import create_app
 
@@ -31,174 +31,53 @@ def clear_existing_data():
     db.session.query(Transaction).delete()
     db.session.query(Income).delete()
     db.session.query(Investment).delete()
+    db.session.query(BudgetMethodology).delete()
     db.session.query(Category).delete()
     
     db.session.commit()
     print("✅ Existing data cleared")
 
 
+# Merge categories from both scripts, remove duplicates
 def seed_categories():
     """Create comprehensive set of categories with budgeting features"""
     print("📂 Creating comprehensive categories...")
-    
+
     categories_data = [
-        # Income categories
-        {
-            'name': 'Salary',
-            'type': 'income',
-            'color': '#10B981'
-        },
-        {
-            'name': 'Freelance',
-            'type': 'income',
-            'color': '#3B82F6'
-        },
-        {
-            'name': 'Investment Returns',
-            'type': 'income',
-            'color': '#22C55E'
-        },
-        {
-            'name': 'Side Business',
-            'type': 'income',
-            'color': '#06B6D4'
-        },
-        
-        # Essential expense categories (Critical & Essential priority)
-        {
-            'name': 'Rent/Mortgage',
-            'type': 'expense',
-            'color': '#EF4444',
-            'budget_limit': 1800.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'critical'
-        },
-        {
-            'name': 'Groceries',
-            'type': 'expense',
-            'color': '#4ECDC4',
-            'budget_limit': 600.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'essential'
-        },
-        {
-            'name': 'Utilities',
-            'type': 'expense',
-            'color': '#F97316',
-            'budget_limit': 300.0,
-            'budget_period': 'monthly',
-            'budget_type': 'percentage',
-            'budget_percentage': 8.0,
-            'budget_priority': 'essential'
-        },
-        {
-            'name': 'Transportation',
-            'type': 'expense',
-            'color': '#F59E0B',
-            'budget_limit': 400.0,
-            'budget_period': 'monthly',
-            'budget_type': 'rolling_average',
-            'budget_rolling_months': 3,
-            'budget_priority': 'essential'
-        },
-        {
-            'name': 'Healthcare',
-            'type': 'expense',
-            'color': '#06B6D4',
-            'budget_limit': 200.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'essential'
-        },
-        {
-            'name': 'Insurance',
-            'type': 'expense',
-            'color': '#8B5CF6',
-            'budget_limit': 350.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'essential'
-        },
-        
-        # Important expense categories
-        {
-            'name': 'Dining Out',
-            'type': 'expense',
-            'color': '#FFEAA7',
-            'budget_limit': 300.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'important'
-        },
-        {
-            'name': 'Entertainment',
-            'type': 'expense',
-            'color': '#EC4899',
-            'budget_limit': 150.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'important'
-        },
-        {
-            'name': 'Personal Care',
-            'type': 'expense',
-            'color': '#DDA0DD',
-            'budget_limit': 100.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'important'
-        },
-        {
-            'name': 'Education',
-            'type': 'expense',
-            'color': '#84CC16',
-            'budget_limit': 250.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'important'
-        },
-        
-        # Discretionary expense categories
-        {
-            'name': 'Shopping',
-            'type': 'expense',
-            'color': '#98D8C8',
-            'budget_limit': 200.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'discretionary'
-        },
-        {
-            'name': 'Travel',
-            'type': 'expense',
-            'color': '#FDB462',
-            'budget_limit': 500.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'discretionary'
-        },
-        {
-            'name': 'Gifts & Donations',
-            'type': 'expense',
-            'color': '#FF6B9D',
-            'budget_limit': 150.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'discretionary'
-        },
-        {
-            'name': 'Subscriptions',
-            'type': 'expense',
-            'color': '#A8E6CF',
-            'budget_limit': 100.0,
-            'budget_period': 'monthly',
-            'budget_type': 'fixed',
-            'budget_priority': 'discretionary'
-        }
+        # Income categories from seed_comprehensive.py
+        {'name': 'Salary', 'type': 'income', 'color': '#10B981'},
+        {'name': 'Freelance', 'type': 'income', 'color': '#3B82F6'},
+        {'name': 'Investment Returns', 'type': 'income', 'color': '#22C55E'},
+        {'name': 'Side Business', 'type': 'income', 'color': '#06B6D4'},
+
+        # Expense categories combining both scripts
+        # Critical
+        {'name': 'Rent/Mortgage', 'type': 'expense', 'color': '#EF4444', 'budget_limit': 1800.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'critical'},
+        {'name': 'Utilities', 'type': 'expense', 'color': '#F97316', 'budget_limit': 250.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'critical'},
+        {'name': 'Insurance', 'type': 'expense', 'color': '#DC2626', 'budget_limit': 180.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'critical'},
+
+        # Essential
+        {'name': 'Groceries', 'type': 'expense', 'color': '#059669', 'budget_limit': 600.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'essential'},
+        {'name': 'Transportation', 'type': 'expense', 'color': '#0891B2', 'budget_limit': 320.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'essential'},
+        {'name': 'Healthcare', 'type': 'expense', 'color': '#7C3AED', 'budget_limit': 150.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'essential'},
+        {'name': 'Phone & Internet', 'type': 'expense', 'color': '#2563EB', 'budget_limit': 120.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'essential'},
+
+        # Important
+        {'name': 'Dining Out', 'type': 'expense', 'color': '#F59E0B', 'budget_limit': 300.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'important'},
+        {'name': 'Shopping', 'type': 'expense', 'color': '#EC4899', 'budget_limit': 250.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'important'},
+        {'name': 'Gym & Fitness', 'type': 'expense', 'color': '#8B5CF6', 'budget_limit': 80.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'important'},
+        {'name': 'Personal Care', 'type': 'expense', 'color': '#F472B6', 'budget_limit': 100.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'important'},
+        {'name': 'Education', 'type': 'expense', 'color': '#84CC16', 'budget_limit': 250.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'important'},
+
+        # Discretionary
+        {'name': 'Entertainment', 'type': 'expense', 'color': '#06B6D4', 'budget_limit': 200.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
+        {'name': 'Subscriptions', 'type': 'expense', 'color': '#84CC16', 'budget_limit': 85.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
+        {'name': 'Travel', 'type': 'expense', 'color': '#F97316', 'budget_limit': 400.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
+        {'name': 'Gifts & Donations', 'type': 'expense', 'color': '#EF4444', 'budget_limit': 150.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
+        {'name': 'Hobbies', 'type': 'expense', 'color': '#8B5CF6', 'budget_limit': 120.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
+        {'name': 'Miscellaneous', 'type': 'expense', 'color': '#6B7280', 'budget_limit': 100.0, 'budget_period': 'monthly', 'budget_type': 'fixed', 'budget_priority': 'discretionary'},
     ]
-    
+
     categories = []
     for cat_data in categories_data:
         category = Category(**cat_data)
@@ -208,6 +87,109 @@ def seed_categories():
     db.session.commit()
     print(f"✅ Created {len(categories)} categories")
     return categories
+
+
+def seed_methodologies():
+    """Create sample budget methodologies"""
+    print("📊 Creating budget methodologies...")
+    
+    methodologies_data = [
+        {
+            'name': 'Zero-Based Budgeting',
+            'description': 'Assign every dollar a job',
+            'methodology_type': 'zero_based',
+            'is_active': True,
+            'is_default': True,
+            'configuration': {}  # No specific config needed
+        },
+        {
+            'name': '50/30/20 Rule',
+            'description': '50% needs, 30% wants, 20% savings',
+            'methodology_type': 'percentage_based',
+            'is_active': False,
+            'is_default': False,
+            'configuration': {
+                'needs_percentage': 50,
+                'wants_percentage': 30,
+                'savings_percentage': 20
+            }
+        },
+        {
+            'name': 'Envelope System',
+            'description': 'Allocate cash to envelopes for each category',
+            'methodology_type': 'envelope',
+            'is_active': False,
+            'is_default': False,
+            'configuration': {
+                'allow_envelope_transfer': True,
+                'rollover_unused': True,
+                'max_transfer_percentage': 10
+            }
+        }
+    ]
+    
+    methodologies = []
+    for meth_data in methodologies_data:
+        methodology = BudgetMethodology(**meth_data)
+        methodology.set_configuration(meth_data['configuration'])
+        methodologies.append(methodology)
+        db.session.add(methodology)
+    
+    db.session.commit()
+    print(f"✅ Created {len(methodologies)} budget methodologies")
+    return methodologies
+
+
+def seed_goals(categories):
+    """Create sample budget goals and link to categories"""
+    print("🎯 Creating budget goals...")
+    
+    # Sample goals data
+    goals_data = [
+        {
+            'name': 'Emergency Fund',
+            'description': 'Build 6 months of expenses',
+            'target_amount': 15000.0,
+            'deadline': date.today() + timedelta(days=365),
+            'category_names': ['Savings', 'Investment Returns']  # Link to these categories
+        },
+        {
+            'name': 'Vacation Savings',
+            'description': 'Save for family vacation',
+            'target_amount': 5000.0,
+            'deadline': date.today() + timedelta(days=180),
+            'category_names': ['Side Business', 'Freelance']
+        },
+        {
+            'name': 'New Car Down Payment',
+            'description': 'Save for car purchase',
+            'target_amount': 10000.0,
+            'deadline': date.today() + timedelta(days=270),
+            'category_names': ['Salary']
+        }
+    ]
+    
+    goals = []
+    for goal_data in goals_data:
+        goal = BudgetGoal(
+            name=goal_data['name'],
+            description=goal_data['description'],
+            target_amount=goal_data['target_amount'],
+            deadline=goal_data['deadline']
+        )
+        
+        # Link categories
+        for cat_name in goal_data['category_names']:
+            category = next((c for c in categories if c.name == cat_name), None)
+            if category:
+                goal.categories.append(category)
+        
+        goals.append(goal)
+        db.session.add(goal)
+    
+    db.session.commit()
+    print(f"✅ Created {len(goals)} budget goals")
+    return goals
 
 
 def seed_income_records(categories):
@@ -280,6 +262,7 @@ def seed_income_records(categories):
     return income_records
 
 
+# Use the transaction seeding from seed_comprehensive.py as it's more detailed
 def seed_transactions(categories):
     """Create comprehensive transaction history"""
     print("💳 Creating comprehensive transactions...")
@@ -376,6 +359,7 @@ def seed_transactions(categories):
     return transactions
 
 
+# Use investment seeding from seed_comprehensive.py as it's more comprehensive
 def seed_investments():
     """Create diverse investment portfolio"""
     print("📈 Creating investment portfolio...")
@@ -580,7 +564,7 @@ def seed_notifications_and_alerts():
     return notification_prefs, alerts
 
 
-def print_summary(categories, income_records, transactions, investments, notification_prefs, alerts):
+def print_summary(categories, income_records, transactions, investments, notification_prefs, alerts, methodologies, goals):
     """Print comprehensive summary of seeded data"""
     print("\n" + "="*60)
     print("🎉 COMPREHENSIVE DATABASE SEEDING COMPLETED!")
@@ -596,6 +580,8 @@ def print_summary(categories, income_records, transactions, investments, notific
     print(f"   Investments: {len(investments)}")
     print(f"   Notification Preferences: {len(notification_prefs)}")
     print(f"   Alerts: {len(alerts)}")
+    print(f"   Methodologies: {len(methodologies)}")
+    print(f"   Goals: {len(goals)}")
     
     # Financial summary
     current_month_start = date.today().replace(day=1)
@@ -676,13 +662,15 @@ def seed_comprehensive_database():
         
         # Seed data in order of dependencies
         categories = seed_categories()
+        methodologies = seed_methodologies()
+        goals = seed_goals(categories)
         income_records = seed_income_records(categories)
         transactions = seed_transactions(categories)
         investments = seed_investments()
         notification_prefs, alerts = seed_notifications_and_alerts()
         
         # Print comprehensive summary
-        print_summary(categories, income_records, transactions, investments, notification_prefs, alerts)
+        print_summary(categories, income_records, transactions, investments, notification_prefs, alerts, methodologies, goals)
 
 
 if __name__ == "__main__":

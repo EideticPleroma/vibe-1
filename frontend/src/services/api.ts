@@ -44,7 +44,9 @@ import {
   MethodologyValidationResponse,
   MethodologyComparisonRequest,
   MethodologyComparisonResponse,
-  MethodologyRecommendationsResponse
+  MethodologyRecommendationsResponse,
+  BudgetGoal,
+  BudgetGoalFormData
 } from '../types';
 
 // Create axios instance with base configuration
@@ -462,6 +464,48 @@ export const budgetMethodologyApi = {
     const response = await api.get('/budget/methodologies/recommendations');
     return response.data;
   }
+};
+
+// Budget Goals API (Feature 1006)
+export const goalsApi = {
+  getAll: async (): Promise<BudgetGoal[]> => {
+    const response = await api.get<BudgetGoal[]>('/goals');
+    return response.data;
+  },
+
+  create: async (data: BudgetGoalFormData): Promise<BudgetGoal> => {
+    const response = await api.post<BudgetGoal>('/goals', data);
+    return response.data;
+  },
+
+  getOne: async (id: number): Promise<BudgetGoal> => {
+    const response = await api.get<BudgetGoal>(`/goals/${id}`);
+    return response.data;
+  },
+
+  update: async (id: number, data: Partial<BudgetGoalFormData>): Promise<BudgetGoal> => {
+    const response = await api.put<BudgetGoal>(`/goals/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/goals/${id}`);
+  },
+
+  allocateCategory: async (goalId: number, categoryId: number): Promise<BudgetGoal> => {
+    const response = await api.post<BudgetGoal>(`/goals/${goalId}/allocate-category`, { category_id: categoryId });
+    return response.data;
+  },
+
+  removeCategory: async (goalId: number, categoryId: number): Promise<BudgetGoal> => {
+    const response = await api.delete<BudgetGoal>(`/goals/${goalId}/remove-category/${categoryId}`);
+    return response.data;
+  },
+
+  updateProgress: async (goalId: number): Promise<BudgetGoal> => {
+    const response = await api.post<BudgetGoal>(`/goals/${goalId}/update-progress`);
+    return response.data;
+  },
 };
 
 export default api;

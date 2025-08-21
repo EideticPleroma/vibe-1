@@ -1062,3 +1062,61 @@ def apply_methodology_to_categories(methodology_id: int, total_income: float = N
         db.session.commit()
     
     return calculation_result
+
+class BudgetGoal(db.Model):
+    """Budget Goal model for setting and tracking financial goals (Feature 1006)"""
+    __tablename__ = 'budget_goals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    target_amount = db.Column(db.Numeric(10, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(10, 2), default=0.0)
+    deadline = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    categories = db.relationship('Category', secondary='goal_categories', backref=db.backref('goals', lazy='dynamic'))
+
+    @hybrid_property
+    def progress_percentage(self):
+        if self.target_amount <= 0:
+            return 0.0
+        return (self.current_amount / self.target_amount) * 100
+
+    def update_progress(self):
+        """Update current_amount based on transactions in linked categories"""
+        if not self.categories:
+            return
+        spent = db.session.query(func.sum(Transaction.amount)).filter(
+            Transaction.category_id.in_([cat.id for cat in self.categories]),
+            Transaction.type == 'income',  # Assuming savings are income to goals
+            Transaction.date <= date.today()
+        ).scalar() or 0.0
+        self.current_amount = float(spent)
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'target_amount': float(self.target_amount),
+            'current_amount': float(self.current_amount),
+            'deadline': self.deadline.isoformat() if self.deadline else None,
+            'progress_percentage': float(self.progress_percentage),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'categories': [cat.to_dict() for cat in self.categories]
+        }
+
+    def __repr__(self):
+        return f'<BudgetGoal {self.name} - Target: {self.target_amount}>'
+
+
+# Association table
+goal_categories = db.Table('goal_categories',
+    db.Column('goal_id', db.Integer, db.ForeignKey('budget_goals.id'), primary_key=True),
+    db.Column('category_id', db.Integer, db.ForeignKey('categories.id'), primary_key=True)
+)

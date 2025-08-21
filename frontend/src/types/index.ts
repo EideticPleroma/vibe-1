@@ -699,3 +699,32 @@ export interface MethodologyComparisonRequest {
   methodology_ids: number[];
   total_income?: number;
 }
+
+// Budget Goals Types (Feature 1006)
+export interface BudgetGoal {
+  id: number;
+  name: string;
+  description?: string;
+  target_amount: number;
+  current_amount: number;
+  deadline?: string;
+  progress_percentage: number;
+  created_at: string;
+  updated_at: string;
+  categories: Category[];
+}
+
+export interface BudgetGoalFormData {
+  name: string;
+  description?: string;
+  target_amount: number;
+  deadline?: string;
+}
+
+export interface BudgetGoalResponse {
+  goals: BudgetGoal[];
+}
+
+export interface AllocateCategoryData {
+  category_id: number;
+}
